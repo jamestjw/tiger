@@ -11,16 +11,11 @@
 
 (maintainers "James Tan")
 
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(license "BSD-3-Clause")
 
 (package
  (name tiger)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "A compiler for the tiger programming language.")
+ (description "Implementing a compiler for tiger as described in the book Modern Compiler Implementation in ML by Andrew Appel.")
  (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
+ (tags (tiger compiler)))
