@@ -1,0 +1,11 @@
+(library
+ (name lexer)
+ (libraries base stdio)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test ppx_assert)))
+
+(env
+ (dev
+  (flags
+   (:standard -w -27))))
