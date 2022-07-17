@@ -67,8 +67,14 @@ rule tiger_token = parse
     | "/*"
         (* Activate "comment" rule *)
         { comment lexbuf }
-    | [' ' '\t' '\n']
+    | [' ' '\t']
         { tiger_token lexbuf } (* eat up whitespace *)
+        (* eat up newline and increment line pos *)
+    |  '\n' { 
+            ErrorMsg.lineNum := !ErrorMsg.lineNum + 1; 
+            ErrorMsg.linePos := (Lexing.lexeme_start lexbuf )::!ErrorMsg.linePos;
+            tiger_token lexbuf 
+        }
     (* Returning EOF here as compiler doesn't realise that calling ErrorMsg.error raises an exception *)
     | _ { (ErrorMsg.error (Lexing.lexeme_start lexbuf) "Invalid token"); Tokens._EOF (Lexing.lexeme_start lexbuf, Lexing.lexeme_end lexbuf) }
     | eof { Tokens._EOF (Lexing.lexeme_start lexbuf, Lexing.lexeme_end lexbuf) }
@@ -86,7 +92,11 @@ and comment = parse
         let res = curr_token :: acc in
         if Tokens.is_eof curr_token then res else parse' lexbuf res
     in
-    List.rev (parse' lexbuf [])
+    let res = List.rev (parse' lexbuf [])
+    in
+    if !ErrorMsg.anyErrors then
+        raise ErrorMsg.Error
+    else res
 
     let%test_unit "parse_single_int" =
     let lexbuf = Lexing.from_string "42" in
@@ -140,4 +150,10 @@ and comment = parse
     let lexbuf = Lexing.from_string "\"A string\"" in
     [%test_eq: Tokens.token list] (parse lexbuf)
         [ Tokens._STRING ("A string", 0, 1); Tokens._EOF (2, 2) ]
+
+    exception Missing_exception
+
+    let%expect_test "parse_invalid_symbol" =
+    let lexbuf = Lexing.from_string "let type arrtype = ~array of" in
+    try (ignore (parse lexbuf); raise Missing_exception) with ErrorMsg.Error -> ()
 }

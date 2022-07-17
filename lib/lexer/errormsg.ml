@@ -40,9 +40,9 @@ module ErrorMsg = struct
     anyErrors := true;
     print_string !fileName;
     look (!linePos, !lineNum);
-    print_string ":";
+    print_string ": ";
     print_string msg;
-    print_string "\n"
+    print_endline ""
 
   let impossible msg =
     print_string ("Error: Compiler bug: " ^ msg ^ "\n");
