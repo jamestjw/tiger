@@ -1,0 +1,2 @@
+val sexp_of_token : token -> Base.Sexp.t
+val compare_token : token -> token -> int

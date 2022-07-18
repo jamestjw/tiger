@@ -4,12 +4,20 @@ Implementing a compiler for `tiger` as described in the book **Modern Compiler I
 
 ## Generate lexer
 ```bash
-ocamllex lib/lexer/lexer.mll
 # Remove extraneous lines (tests dont work otherwise)
-sed -i '' "/^#.*$/c\\" lib/lexer/lexer.ml
+ocamllex lib/parser/lexer.mll && sed -i '' "/^#.*$/c\\" lib/parser/lexer.ml
 ```
 
-This generates `lib/lexer/lexer.ml` (this file is typically checked into the repository).
+This generates `lib/parser/lexer.ml` (this file is typically checked into the repository).
+
+## Generate parser
+```bash
+ocamlyacc lib/parser/grammar.mly && sed -i '' "/^#.*$/c\\" lib/parser/grammar.ml
+# Additional something that we need to add to the mli file
+cat lib/parser/grammar.mli_ >> lib/parser/grammar.mli
+```
+
+This generates `lib/parser/grammar.ml` (this file is typically checked into the repository).
 
 ## Run tests
 To run unit tests
