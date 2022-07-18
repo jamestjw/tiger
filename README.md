@@ -5,6 +5,8 @@ Implementing a compiler for `tiger` as described in the book **Modern Compiler I
 ## Generate lexer
 ```bash
 ocamllex lib/lexer/lexer.mll
+# Remove extraneous lines (tests dont work otherwise)
+sed -i '' "/^#.*$/c\\" lib/lexer/lexer.ml
 ```
 
 This generates `lib/lexer/lexer.ml` (this file is typically checked into the repository).

@@ -1,10 +1,7 @@
 module type ERRORMSG = sig
   val anyErrors : bool ref
   val fileName : string ref
-  val lineNum : int ref
-  val linePos : int list ref
-  val sourceStream : in_channel ref
-  val error : int -> string -> unit
+  val error : Lexing.lexbuf -> string -> unit
 
   exception Error
 
@@ -15,32 +12,19 @@ end
 module ErrorMsg = struct
   let anyErrors = ref false
   let fileName = ref ""
-  let lineNum = ref 1
-  let linePos = ref [ 1 ]
-  let sourceStream = ref stdin
 
   let reset () =
     anyErrors := false;
-    fileName := "";
-    lineNum := 1;
-    linePos := [ 1 ];
-    sourceStream := stdin
+    fileName := ""
 
   exception Error
 
-  let error pos (msg : string) =
-    let rec look = function
-      | a :: rest, n ->
-          if a < pos then
-            print_string (":" ^ Int.to_string n ^ "." ^ Int.to_string (pos - a))
-          else look (rest, n - 1)
-      | _ -> print_string "0.0"
-    in
-
+  let error lexbuf (msg : string) =
     anyErrors := true;
     print_string !fileName;
-    look (!linePos, !lineNum);
-    print_string ": ";
+    let pos = lexbuf.Lexing.lex_curr_p in
+    (* +1 because we want to print with 1-index *)
+    Stdio.printf ":%d.%d: " pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1);
     print_string msg;
     print_endline ""
 

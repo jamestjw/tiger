@@ -30,12 +30,20 @@
             ("or", Tokens._OR);
             ("and", Tokens._AND);
         ]
+
+    let incr_linenum lexbuf =
+        let pos = lexbuf.Lexing.lex_curr_p in
+        lexbuf.Lexing.lex_curr_p <- { pos with
+            Lexing.pos_lnum = pos.Lexing.pos_lnum + 1; (* Increment line number *)
+            Lexing.pos_bol = pos.Lexing.pos_cnum + 1; (* Increment beginning of line *)
+        }
+    ;;
 }
 
 let digit = ['0'-'9']
 let id = ['a'-'z' 'A'-'Z']['a'-'z' '0'-'9']*
 
-rule tiger_token = parse
+rule token = parse
     | digit+ as inum { Tokens._INT (Int.of_string inum, Lexing.lexeme_start lexbuf, Lexing.lexeme_end lexbuf) }
     | id as word
         {
@@ -67,28 +75,22 @@ rule tiger_token = parse
     | "/*"
         (* Activate "comment" rule *)
         { comment lexbuf }
-    | [' ' '\t']
-        { tiger_token lexbuf } (* eat up whitespace *)
-        (* eat up newline and increment line pos *)
-    |  '\n' { 
-            ErrorMsg.lineNum := !ErrorMsg.lineNum + 1; 
-            ErrorMsg.linePos := (Lexing.lexeme_start lexbuf )::!ErrorMsg.linePos;
-            tiger_token lexbuf 
-        }
-    (* Returning EOF here as compiler doesn't realise that calling ErrorMsg.error raises an exception *)
-    | _ { (ErrorMsg.error (Lexing.lexeme_start lexbuf) "Invalid token"); Tokens._EOF (Lexing.lexeme_start lexbuf, Lexing.lexeme_end lexbuf) }
+    | [' ' '\t'] { token lexbuf } (* eat up whitespace *)
+    |  '\n' { incr_linenum lexbuf; token lexbuf } (* eat up newline and increment line pos in the lexbuf *)
+    (* Print an error message and skip the current char *)
+    | _ { (ErrorMsg.error lexbuf "Invalid token"); token lexbuf }
     | eof { Tokens._EOF (Lexing.lexeme_start lexbuf, Lexing.lexeme_end lexbuf) }
 
 and comment = parse
     | "*/"
         (* Reached the end of comment, return to the "token" rule *)
-        { tiger_token lexbuf }
+        { token lexbuf }
     | _ { comment lexbuf } (* Consume comments *)
 
 {
     let parse lexbuf =
     let rec parse' lexbuf acc =
-        let curr_token = tiger_token lexbuf in
+        let curr_token = token lexbuf in
         let res = curr_token :: acc in
         if Tokens.is_eof curr_token then res else parse' lexbuf res
     in
@@ -98,6 +100,7 @@ and comment = parse
         raise ErrorMsg.Error
     else res
 
+    (* Unit tests *)
     let%test_unit "parse_single_int" =
     let lexbuf = Lexing.from_string "42" in
     [%test_eq: Tokens.token list] (parse lexbuf)
@@ -155,5 +158,28 @@ and comment = parse
 
     let%expect_test "parse_invalid_symbol" =
     let lexbuf = Lexing.from_string "let type arrtype = ~array of" in
-    try (ignore (parse lexbuf); raise Missing_exception) with ErrorMsg.Error -> ()
+    try 
+        ignore (parse lexbuf); 
+        raise Missing_exception
+    with ErrorMsg.Error -> 
+        ();
+        [%expect {| :1.21: Invalid token |}]
+
+    let%expect_test "parse_invalid_symbol_line2" =
+    let lexbuf = Lexing.from_string "let type arrtype = array of\ncat ` hello" in
+    try 
+        ignore (parse lexbuf); 
+        raise Missing_exception
+    with ErrorMsg.Error -> 
+        ();
+        [%expect {| :2.5: Invalid token |}]
+
+    let%expect_test "parse_invalid_symbol_line3" =
+    let lexbuf = Lexing.from_string "let type\ncat hello\nwrong $ token" in
+    try 
+        ignore (parse lexbuf); 
+        raise Missing_exception
+    with ErrorMsg.Error -> 
+        ();
+        [%expect {| :3.7: Invalid token |}]
 }
