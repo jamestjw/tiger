@@ -11,16 +11,6 @@ let parse fname =
   | End_of_file -> ()
   | Parsing.Parse_error -> ErrorMsg.error lexbuf "Syntax error"
 
-let parse_str s =
-  let lexbuf = Lexing.from_string s in
-  try
-    while true do
-      Grammar.input Lexer.token lexbuf
-    done
-  with
-  | End_of_file -> ()
-  | Parsing.Parse_error -> ErrorMsg.error lexbuf "Syntax error"
-
 open Base
 
 let%expect_test "successfully_parse_test_files" =

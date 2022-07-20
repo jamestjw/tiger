@@ -84,6 +84,7 @@ expseq: /* empty */ {}
 /* expseq with length > 0 */
 nonempty_expseq: exp %prec LOW_PREC {}
     | nonempty_expseq SEMICOLON exp %prec LOW_PREC {}
+    | error SEMICOLON exp %prec LOW_PREC {}
 
 exp: STRING {}
     | ID %prec LOW_PREC {}
@@ -113,6 +114,7 @@ exp: STRING {}
     | for_stmt {}
     | while_stmt {}
     | LPAREN expseq RPAREN {}
+    | LPAREN error RPAREN {}
 
 assignment: exp ASSIGN exp {}
 
