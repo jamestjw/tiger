@@ -19,12 +19,12 @@ let
   type list = {first: int, rest: list}
 
   function readlist() : list =
-      let var any := any{any=0}
-          var i := readint(any)
-      in if any.any
-          then list{first=i,rest=readlist()}
-          else nil
-      end
+    let var any := any{any=0}
+      var i := readint(any)
+    in 
+      if any.any then list{first=i,rest=readlist()}
+      else nil
+    end
 
   function merge(a: list, b: list) : list =
     if a=nil then b
@@ -35,10 +35,10 @@ let
 
   function printint(i: int) =
     let function f(i:int) = if i>0
-        then (f(i/10); print(chr(i-i/10*10+ord("0"))))
+      then (f(i/10); print(chr(i-i/10*10+ord("0"))))
     in if i<0 then (print("-"); f(-i))
-        else if i>0 then f(i)
-        else print("0")
+      else if i>0 then f(i)
+      else print("0")
     end
 
   function printlist(l: list) =
@@ -47,7 +47,6 @@ let
 
     var list1 := readlist()
     var list2 := (buffer:=getchar(); readlist())
-
 
     /* BODY OF MAIN PROGRAM */
   in printlist(merge(list1,list2))

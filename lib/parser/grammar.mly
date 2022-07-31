@@ -1,4 +1,12 @@
 %{
+    open Absyn
+    open Symbol
+    module A  = Absyn
+
+    let get_pos_cnum () = (Parsing.symbol_start_pos ()).pos_cnum
+    let get_pos_cnum_of_n n = (Parsing.rhs_start_pos n).pos_cnum
+
+    exception InternalError
 %}
 
 %token <string> ID STRING
@@ -22,117 +30,231 @@
 %left PLUS MINUS
 %left TIMES DIVIDE
 %left NEG  /* negation -- unary minus */
-%left LBRACK LPAREN /* Array access and fncall */
+%left LBRACK LPAREN DOT /* Array access and fncall */
 %right ASSIGN
 
 %start input
-%type <unit> input
+%type <A.exp> input
 
 %% /* Grammar rules and actions */
-input: /* empty */ {}
-    | input statement {}
+input: /* empty */ { A.SeqExp [] }
+    | input statement {
+        if $2 = A.NilExp then $1
+        else
+            match $1 with
+            | A.SeqExp [] -> A.SeqExp [($2, (get_pos_cnum_of_n 2))]
+            | A.SeqExp l -> A.SeqExp (l @ [($2, (get_pos_cnum_of_n 2))])
+            | _ -> raise InternalError 
+    }
 
-statement: let_stmt {}
+statement: let_stmt { $1 }
     /*
      * SR conflict here when a SEMICOLON is encountered
      * but it is fine as we a shift is favored, i.e. the
      * SEMICOLON is always consumed to form a longer stmt.
      */
-    | nonempty_expseq {}
+    | nonempty_expseq { $1 }
 
-decs: dec {}
-    | decs dec {}
+decs: dec { [$1] }
+    | decs dec { $1 @ [$2] }
 
-dec: tydec {}
-    | vardec {}
-    | fundec {}
+dec: tydec { $1 }
+    | vardec { $1 }
+    | fundec { $1 }
 
-tydec: TYPE ID EQ ty {}
+tydec: TYPE ID EQ ty { A.TypeDec { name = (Symbol.to_symbol $2); ty = $4; pos = (get_pos_cnum ()) } }
 
-ty: ID {}
-    | LBRACE tyfields RBRACE {}
-    | ARRAY OF ID {}
+ty: ID { A.NameTy ((Symbol.to_symbol $1), (get_pos_cnum ())) }
+    | LBRACE tyfields RBRACE { A.RecordTy $2 }
+    | ARRAY OF ID { A.ArrayTy ((Symbol.to_symbol $3), (get_pos_cnum ())) }
 
-tyfields: /* empty */ {}
-    | nonempty_tyfields {}
+tyfields: /* empty */ { [] }
+    | nonempty_tyfields { $1 }
 
 /* tyfields with length > 0 */
-nonempty_tyfields : tyfield {}
-    | nonempty_tyfields COMMA tyfield {}
+nonempty_tyfields : tyfield { [$1] }
+    | nonempty_tyfields COMMA tyfield { $1 @ [$3] }
 
-tyfield: ID COLON ID {}
+tyfield: ID COLON ID {
+    { 
+        name = (Symbol.to_symbol $1);
+        escape = ref true;
+        typ = (Symbol.to_symbol $3);
+        pos = (get_pos_cnum ())
+    }
+}
 
-record_initialisation_fields: /* empty */ {}
-    | ne_record_initialisation_fields {}
+record_initialisation_fields: /* empty */ { [] }
+    | ne_record_initialisation_fields { $1 }
 
-ne_record_initialisation_fields: record_initialisation_field {}
-    | ne_record_initialisation_fields COMMA record_initialisation_field {}
+ne_record_initialisation_fields: record_initialisation_field { [$1] }
+    | ne_record_initialisation_fields COMMA record_initialisation_field { $1 @ [$3] }
 
-record_initialisation_field: ID EQ exp {}
+record_initialisation_field: ID EQ exp { ((Symbol.to_symbol $1), $3, (get_pos_cnum ())) }
 
-vardec: VAR ID ASSIGN exp {}
-    | VAR ID COLON ID ASSIGN exp {}
+vardec: VAR ID ASSIGN exp {
+        VarDec {
+            name = (Symbol.to_symbol $2);
+            escape = ref true;
+            typ = None;
+            init = $4;
+            pos = (get_pos_cnum ());
+        }
+    }
+    | VAR ID COLON ID ASSIGN exp {
+        VarDec {
+            name = (Symbol.to_symbol $2);
+            escape = ref true;
+            typ = Some ((Symbol.to_symbol $4), (get_pos_cnum_of_n 4));
+            init = $6;
+            pos = (get_pos_cnum ());
+        }
+     }
 
-fundec: FUNCTION ID LPAREN tyfields RPAREN EQ statement {} /* function id (tyfields) = exp */
-    | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ statement {} /* function id (tyfields) : type-id = exp */
+/* function id (tyfields) = exp */
+fundec: FUNCTION ID LPAREN tyfields RPAREN EQ statement {
+        FunctionDec {
+            name = (Symbol.to_symbol $2);
+            params = $4;
+            result = None;
+            body = $7;
+            pos = (get_pos_cnum ());
+        }
+    }
+    /* function id (tyfields) : type-id = exp */
+    | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ statement {
+        FunctionDec {
+            name = (Symbol.to_symbol $2);
+            params = $4;
+            result = Some ((Symbol.to_symbol $7), (get_pos_cnum_of_n 7));
+            body = $9;
+            pos = (get_pos_cnum ());
+        }
+    }
 
-let_stmt: LET decs IN expseq END {}
+let_stmt: LET decs IN expseq END { 
+    LetExp {
+        decs = $2;
+        body = $4;
+        pos = (get_pos_cnum ())
+    }
+ }
 
-expseq: /* empty */ {}
-    | nonempty_expseq {}
+expseq: /* empty */ { A.SeqExp [] }
+    | nonempty_expseq { $1 }
 
 /* expseq with length > 0 */
-nonempty_expseq: exp %prec LOW_PREC {}
-    | nonempty_expseq SEMICOLON exp %prec LOW_PREC {}
-    | error SEMICOLON exp %prec LOW_PREC {}
+nonempty_expseq: exp %prec LOW_PREC { A.SeqExp [($1, (get_pos_cnum ()))] }
+    | nonempty_expseq SEMICOLON exp %prec LOW_PREC {
+        match $1 with
+        | A.SeqExp l -> A.SeqExp (l @ [($3, (get_pos_cnum ()))])
+        | _ -> raise InternalError (* This can never happen *)
+     }
+    /* TODO: Verify correctness of AST when an error is encountered */
+    | error SEMICOLON exp %prec LOW_PREC { A.SeqExp [($3, (get_pos_cnum ()))] }
 
-exp: STRING {}
-    | ID %prec LOW_PREC {}
-    | INT {}
-    | NIL {}
-    | exp PLUS exp {}
-    | exp MINUS exp {}
-    | exp TIMES exp {}
-    | exp DIVIDE exp {}
-    | exp EQ  exp {}
-    | exp NEQ exp {}
-    | exp LT  exp {}
-    | exp GT  exp {}
-    | exp LE  exp {}
-    | exp GE  exp {}
-    | exp AND exp {}
-    | exp OR  exp {}
-    | MINUS exp %prec NEG {}
-    | BREAK {}
-    | assignment {}
-    | funcall {}
-    | ID DOT ID {}
-    | ID LBRACK exp RBRACK {} /* Indexing into array */
-    | ID LBRACK exp RBRACK OF exp %prec LOW_PREC {} /* Initialising new array */
-    | ID LBRACE record_initialisation_fields RBRACE {} /* Initialising new record */
-    | if_stmt {}
-    | for_stmt {}
-    | while_stmt {}
-    | LPAREN expseq RPAREN {}
-    | LPAREN error RPAREN {}
+exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
+    | INT { A.IntExp $1 }
+    | NIL { A.NilExp }
+    | exp PLUS exp { A.OpExp { left = $1; right = $3; oper = A.PlusOp; pos = (get_pos_cnum ()) } }
+    | exp MINUS exp { A.OpExp { left = $1; right = $3; oper = A.MinusOp; pos = (get_pos_cnum ()) } }
+    | exp TIMES exp { A.OpExp { left = $1; right = $3; oper = A.TimesOp; pos = (get_pos_cnum ()) } }
+    | exp DIVIDE exp { A.OpExp { left = $1; right = $3; oper = A.DivideOp; pos = (get_pos_cnum ()) } }
+    | exp EQ  exp { A.OpExp { left = $1; right = $3; oper = A.EqOp; pos = (get_pos_cnum ()) } }
+    | exp NEQ exp { A.OpExp { left = $1; right = $3; oper = A.NeqOp; pos = (get_pos_cnum ()) } }
+    | exp LT  exp { A.OpExp { left = $1; right = $3; oper = A.LtOp; pos = (get_pos_cnum ()) } }
+    | exp GT  exp { A.OpExp { left = $1; right = $3; oper = A.GtOp; pos = (get_pos_cnum ()) } }
+    | exp LE  exp { A.OpExp { left = $1; right = $3; oper = A.LeOp; pos = (get_pos_cnum ()) } }
+    | exp GE  exp { A.OpExp { left = $1; right = $3; oper = A.GeOp; pos = (get_pos_cnum ()) } }
+    /* Express e1 & e2 as if e1 then e2 else 0 */
+    | exp AND exp { A.IfExp { test = $1; then' = $3; else' = Some (A.IntExp 0); pos = (get_pos_cnum ()) } }
+    /* Express e1 | e2 as if e1 then 1 else e2 */
+    | exp OR  exp { A.IfExp { test = $1; then' = A.IntExp 1; else' = Some $3; pos = (get_pos_cnum ()) } }
+    /* Unary negation, express -i as (0 - i) */
+    | MINUS exp %prec NEG { A.OpExp { left = A.IntExp 0; right = $2; oper = A.MinusOp; pos = (get_pos_cnum ()) } }
+    | BREAK { A.BreakExp (get_pos_cnum ()) }
+    | assignment { $1 }
+    | funcall { $1 }
+    | var { A.VarExp $1 }
+    /* Initialising new array */
+    | ID LBRACK exp RBRACK OF exp %prec LOW_PREC {
+        A.ArrayExp {
+            typ = (Symbol.to_symbol $1); 
+            size = $3;
+            init = $6;
+            pos = (get_pos_cnum ())
+        }
+     }
+    /* Initialising new record */
+    | ID LBRACE record_initialisation_fields RBRACE {
+        A.RecordExp {
+            fields = $3;
+            typ = (Symbol.to_symbol $1); 
+            pos = (get_pos_cnum ())
+        }
+     }
+    | if_stmt { $1 }
+    | for_stmt { $1 }
+    | while_stmt { $1 }
+    | LPAREN expseq RPAREN { $2 }
+    /* TODO: Figure out what to return for error production */
+    | LPAREN error RPAREN { A.NilExp }
 
-assignment: exp ASSIGN exp {}
+var: ID DOT ID {
+        A.FieldVar (
+        (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ()))),
+        (Symbol.to_symbol $3),
+        (get_pos_cnum ()))
+    }
+    /* Indexing into array */
+    | ID LBRACK exp RBRACK {
+        A.SubscriptVar (
+            (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ()))),
+            $3,
+            (get_pos_cnum ()))
+     }
+    | ID %prec LOW_PREC { A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ())) }
 
-while_stmt: WHILE exp DO statement {}
+assignment: var ASSIGN exp { 
+    AssignExp { var = $1; exp = $3; pos = (get_pos_cnum ()) }
+ }
+
+while_stmt: WHILE exp DO statement {
+    WhileExp { test = $2; body = $4; pos = (get_pos_cnum ()) }
+}
 
 /* Conflict resolution of shifting gives the desired behaviour */
-if_stmt: IF exp THEN statement {}
-    | IF exp THEN statement ELSE statement {}
+if_stmt: IF exp THEN statement {
+       A.IfExp { test = $2; then' = $4; else' = None; pos = (get_pos_cnum ()) }
+     }
+    | IF exp THEN statement ELSE statement { 
+        A.IfExp { test = $2; then' = $4; else' = Some $6; pos = (get_pos_cnum ()) }
+     }
 
-for_stmt: FOR ID ASSIGN exp TO exp DO statement {}
+for_stmt: FOR ID ASSIGN exp TO exp DO statement { 
+    ForExp {
+        var = (Symbol.to_symbol $2);
+        escape = ref true;
+        lo = $4;
+        hi = $6;
+        body = $8;
+        pos = (get_pos_cnum ()) 
+    }
+ }
 
-funcall: ID LPAREN params RPAREN {}
+funcall: ID LPAREN params RPAREN {
+    CallExp {
+        func = (Symbol.to_symbol $1);
+        args = $3;
+        pos = (get_pos_cnum ())
+    }
+}
 
-params: /* empty */ {}
-    | non_empty_params {}
+params: /* empty */ { [] }
+    | non_empty_params { $1 }
 
-non_empty_params: exp {}
-    | non_empty_params COMMA exp {}
+non_empty_params: exp { [$1] }
+    | non_empty_params COMMA exp { $1 @ [$3] }
 %%
 
 let sexp_of_token t =
