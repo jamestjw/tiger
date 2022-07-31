@@ -8,4 +8,4 @@
 (env
  (dev
   (flags
-   (:standard -w -27))))
+   (:standard -w -27-30))))

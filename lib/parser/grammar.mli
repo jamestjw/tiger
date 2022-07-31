@@ -1,3 +1,6 @@
+open Absyn
+module A = Absyn
+
 type token =
   | ID of string
   | STRING of string
@@ -43,6 +46,6 @@ type token =
   | VAR
   | TYPE
 
-val input : (Lexing.lexbuf -> token) -> Lexing.lexbuf -> unit
+val input : (Lexing.lexbuf -> token) -> Lexing.lexbuf -> A.exp
 val sexp_of_token : token -> Base.Sexp.t
 val compare_token : token -> token -> int
