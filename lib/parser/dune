@@ -8,4 +8,6 @@
 (env
  (dev
   (flags
-   (:standard -w -27-30))))
+   ; Disabled warnings
+   ; 30: duplicate-definitions (We use similar names in some record fields)
+   (:standard -w -30))))

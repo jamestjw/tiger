@@ -10,7 +10,7 @@ module Absyn = struct
 
   and exp =
     | VarExp of var
-    | NilExp
+    | NilExp of int
     | IntExp of int
     | StringExp of string * int
     | CallExp of { func : symbol; args : exp list; pos : int }
@@ -75,4 +75,27 @@ module Absyn = struct
     body : exp;
     pos : int;
   }
+
+  let var_pos = function
+    | SimpleVar (_, pos) -> pos
+    | FieldVar (_, _, pos) -> pos
+    | SubscriptVar (_, _, pos) -> pos
+
+  let exp_pos = function
+    | VarExp var -> var_pos var
+    | NilExp pos -> pos
+    | IntExp pos -> pos
+    | StringExp (_, pos) -> pos
+    | CallExp { pos; _ } -> pos
+    | OpExp { pos; _ } -> pos
+    | RecordExp { pos; _ } -> pos
+    | SeqExp [] -> 0
+    | SeqExp ((_, pos) :: _) -> pos
+    | AssignExp { pos; _ } -> pos
+    | IfExp { pos; _ } -> pos
+    | WhileExp { pos; _ } -> pos
+    | ForExp { pos; _ } -> pos
+    | BreakExp pos -> pos
+    | LetExp { pos; _ } -> pos
+    | ArrayExp { pos; _ } -> pos
 end
