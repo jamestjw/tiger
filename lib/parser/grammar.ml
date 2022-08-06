@@ -145,12 +145,13 @@ let yyact =
       let _1 = (Parsing.peek_val __caml_parser_env 1 : A.exp) in
       let _2 = (Parsing.peek_val __caml_parser_env 0 : 'statement) in
       Obj.repr
-        (if _2 = A.NilExp then _1
-         else
-           match _1 with
-           | A.SeqExp [] -> A.SeqExp [ (_2, get_pos_cnum_of_n 2) ]
-           | A.SeqExp l -> A.SeqExp (l @ [ (_2, get_pos_cnum_of_n 2) ])
-           | _ -> raise InternalError
+        (match _2 with
+         | A.NilExp _ -> _1
+         | _ -> (
+             match _1 with
+             | A.SeqExp [] -> A.SeqExp [ (_2, get_pos_cnum_of_n 2) ]
+             | A.SeqExp l -> A.SeqExp (l @ [ (_2, get_pos_cnum_of_n 2) ])
+             | _ -> raise InternalError)
           : A.exp));
     (fun __caml_parser_env ->
       let _1 = (Parsing.peek_val __caml_parser_env 0 : 'let_stmt) in
@@ -324,7 +325,7 @@ let yyact =
     (fun __caml_parser_env ->
       let _1 = (Parsing.peek_val __caml_parser_env 0 : int) in
       Obj.repr (A.IntExp _1 : 'exp));
-    (fun __caml_parser_env -> Obj.repr (A.NilExp : 'exp));
+    (fun __caml_parser_env -> Obj.repr (A.NilExp (get_pos_cnum ()) : 'exp));
     (fun __caml_parser_env ->
       let _1 = (Parsing.peek_val __caml_parser_env 2 : 'exp) in
       let _3 = (Parsing.peek_val __caml_parser_env 0 : 'exp) in
@@ -469,7 +470,7 @@ let yyact =
     (fun __caml_parser_env ->
       let _2 = (Parsing.peek_val __caml_parser_env 1 : 'expseq) in
       Obj.repr (_2 : 'exp));
-    (fun __caml_parser_env -> Obj.repr (A.NilExp : 'exp));
+    (fun __caml_parser_env -> Obj.repr (A.NilExp (get_pos_cnum_of_n 2) : 'exp));
     (fun __caml_parser_env ->
       let _1 = (Parsing.peek_val __caml_parser_env 2 : string) in
       let _3 = (Parsing.peek_val __caml_parser_env 0 : string) in

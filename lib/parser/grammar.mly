@@ -39,12 +39,13 @@
 %% /* Grammar rules and actions */
 input: /* empty */ { A.SeqExp [] }
     | input statement {
-        if $2 = A.NilExp then $1
-        else
+        match $2 with
+        | A.NilExp _ -> $1
+        | _ -> (
             match $1 with
             | A.SeqExp [] -> A.SeqExp [($2, (get_pos_cnum_of_n 2))]
             | A.SeqExp l -> A.SeqExp (l @ [($2, (get_pos_cnum_of_n 2))])
-            | _ -> raise InternalError 
+            | _ -> raise InternalError) 
     }
 
 statement: let_stmt { $1 }
@@ -155,7 +156,7 @@ nonempty_expseq: exp %prec LOW_PREC { A.SeqExp [($1, (get_pos_cnum ()))] }
 
 exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
     | INT { A.IntExp $1 }
-    | NIL { A.NilExp }
+    | NIL { A.NilExp (get_pos_cnum ()) }
     | exp PLUS exp { A.OpExp { left = $1; right = $3; oper = A.PlusOp; pos = (get_pos_cnum ()) } }
     | exp MINUS exp { A.OpExp { left = $1; right = $3; oper = A.MinusOp; pos = (get_pos_cnum ()) } }
     | exp TIMES exp { A.OpExp { left = $1; right = $3; oper = A.TimesOp; pos = (get_pos_cnum ()) } }
@@ -198,7 +199,7 @@ exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
     | while_stmt { $1 }
     | LPAREN expseq RPAREN { $2 }
     /* TODO: Figure out what to return for error production */
-    | LPAREN error RPAREN { A.NilExp }
+    | LPAREN error RPAREN { A.NilExp (get_pos_cnum_of_n 2)}
 
 var: ID DOT ID {
         A.FieldVar (
