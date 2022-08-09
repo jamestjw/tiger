@@ -27,7 +27,7 @@ open Base
 
 let%expect_test "successfully_parse_test_files" =
   ignore
-    (let test_dir = "../../../../tests/" in
+    (let test_dir = "../../../tests/" in
      Caml.Sys.readdir test_dir |> Array.to_list
      |> List.filter ~f:(fun x -> String.(Caml.Filename.extension x = ".tig"))
      |> List.map ~f:(fun fname -> parse_file (test_dir ^ fname)));
