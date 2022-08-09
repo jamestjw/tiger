@@ -1,6 +1,13 @@
 (library
  (name tiger)
- (libraries stdio ppx_inline_test ppx_assert ppx_expect)
+ (libraries base stdio)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test ppx_assert ppx_expect)))
+
+(env
+ (dev
+  (flags
+   ; Disabled warnings
+   ; 30: duplicate-definitions (We use similar names in some record fields)
+   (:standard -w -30))))
