@@ -3,7 +3,6 @@ open Errormsg
 exception Parse_error
 
 let parse lexbuf =
-  ErrorMsg.reset ();
   let rec parse' acc =
     try parse' (acc @ [ Grammar.input Lexer.token lexbuf ]) with
     | End_of_file -> acc
@@ -15,12 +14,15 @@ let parse lexbuf =
   if !ErrorMsg.anyErrors then raise Parse_error else res
 
 let parse_string s =
+  ErrorMsg.reset ();
   let lexbuf = Lexing.from_string s in
   parse lexbuf
 
 let parse_file fname =
+  ErrorMsg.reset ();
   let lexbuf = Lexing.from_channel (Stdio.In_channel.create fname) in
   Lexing.set_filename lexbuf fname;
+  ErrorMsg.set_filename fname;
   parse lexbuf
 
 open Base

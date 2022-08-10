@@ -35,7 +35,9 @@
         lexbuf.Lexing.lex_curr_p <- { pos with
             Lexing.pos_lnum = pos.Lexing.pos_lnum + 1; (* Increment line number *)
             Lexing.pos_bol = pos.Lexing.pos_cnum; (* Increment beginning of line *)
-        }
+        };
+        ErrorMsg.line_num := !ErrorMsg.line_num + 1;
+        ErrorMsg.line_pos := (pos.Lexing.pos_cnum)::!ErrorMsg.line_pos;
     ;;
 }
 
@@ -50,6 +52,7 @@ rule token = parse
             | Some tok -> tok
             | None -> Grammar.ID word
         }
+    | ":=" { Grammar.ASSIGN }
     | ">=" { Grammar.GE }
     | ">" { Grammar.GT }
     | "<=" { Grammar.LE }
@@ -67,7 +70,6 @@ rule token = parse
     | "]" { Grammar.RBRACK }
     | "(" { Grammar.LPAREN }
     | ")" { Grammar.RPAREN }
-    | ":=" { Grammar.ASSIGN }
     | ":" { Grammar.COLON }
     | ";" { Grammar.SEMICOLON }
     | "," { Grammar.COMMA }
@@ -87,6 +89,7 @@ and comment = parse
     | "*/"
         (* Reached the end of comment, return to the "token" rule *)
         { token lexbuf }
+    | '\n' { incr_linenum lexbuf; comment lexbuf } (* eat up newline and increment line pos in the lexbuf *)
     | _ { comment lexbuf } (* Consume comments *)
 
 {
