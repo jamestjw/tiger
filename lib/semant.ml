@@ -41,6 +41,14 @@ module Semant : SEMANT = struct
 
   module StringSet = Set.Make (String)
 
+  let symbol_to_type s tenv pos =
+    match Symbol.look (tenv, s) with
+    | Some t' -> actual_ty t'
+    | None ->
+        ErrorMsg.error_pos pos
+          (Printf.sprintf "undefined type %s" (Symbol.name s));
+        Types.INT
+
   let rec transExp (venv, tenv, exp) =
     let rec trexp = function
       | A.NilExp _ -> { exp = (); ty = Types.NIL }
@@ -63,12 +71,17 @@ module Semant : SEMANT = struct
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined function %s" (S.name id));
               { exp = (); ty = Types.INT })
-      (* TODO: Check if operator type matters *)
       | A.OpExp { left; oper = _; right; pos } ->
-          check_type
-            (Types.INT, trexp left, pos, "integer required for binary operator");
-          check_type
-            (Types.INT, trexp right, pos, "integer required for binary operator");
+          let { ty = left_ty; _ } = trexp left in
+          let { ty = right_ty; _ } = trexp right in
+          if
+            left_ty != right_ty
+            || (left_ty != Types.INT && left_ty != Types.STRING)
+          then
+            ErrorMsg.error_pos pos
+              ("both expression should have matching types (INT or STRING)"
+              ^ Printf.sprintf "left:%s right:%s" (Types.to_string left_ty)
+                  (Types.to_string right_ty));
           { exp = (); ty = Types.INT }
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
@@ -129,7 +142,7 @@ module Semant : SEMANT = struct
           List.fold_left
             (fun _ (e, _) -> trexp e)
             { exp = (); ty = Types.NIL }
-            (List.rev exps)
+            exps
       | AssignExp { var; exp; pos } ->
           let { ty = var_type; _ } = transVar (venv, tenv, var) in
           let { ty = exp_type; _ } = trexp exp in
@@ -201,7 +214,7 @@ module Semant : SEMANT = struct
           match Symbol.look (tenv, typ) with
           | Some (Types.ARRAY (t, _) as ty) ->
               check_type
-                (Types.NIL, trexp size, A.exp_pos size, "array size must be INT");
+                (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
               check_type
                 ( t,
                   trexp init,
@@ -232,7 +245,8 @@ module Semant : SEMANT = struct
           match Symbol.look (venv, id) with
           | Some (E.VarEntry { ty }) -> { exp = (); ty = actual_ty ty }
           | _ ->
-              ErrorMsg.error_pos pos ("undefined variable " ^ S.name id);
+              ErrorMsg.error_pos pos
+                (Printf.sprintf "undefined variable %s" (S.name id));
               { exp = (); ty = Types.INT })
       | A.FieldVar (var, sym, pos) -> (
           match actual_ty (trvar var).ty with
@@ -285,7 +299,7 @@ module Semant : SEMANT = struct
     | A.TypeDec { name; ty; _ } ->
         { venv; tenv = S.enter (tenv, name, transTy (tenv, ty)) }
     | FunctionDec { name; params; result; body; _ } ->
-        let ret_type = transExp (venv, tenv, body) in
+        (* TODO: Load arguments into body *)
         let param_to_type (param : A.field) =
           match Symbol.look (tenv, param.typ) with
           | Some t' -> actual_ty t'
@@ -294,35 +308,49 @@ module Semant : SEMANT = struct
                 (Printf.sprintf "undefined type: %s" (Symbol.name param.typ));
               Types.INT
         in
+        let venv', param_types =
+          let do_param param (env, l) =
+            let ty = param_to_type param in
+            (Symbol.enter (env, param.name, E.VarEntry { ty }), ty :: l)
+          in
+          (* TODO: Use fold_left instead? *)
+          List.fold_right do_param params (venv, [])
+        in
+        let body_type = transExp (venv', tenv, body) in
         (* Verify that the return type matches the body *)
-        (match result with
-        | Some (s, pos) -> (
-            match Symbol.look (tenv, s) with
-            | Some t' ->
-                if ret_type.ty != t' then
+        let ret_type =
+          match result with
+          | Some (s, pos) -> (
+              match Symbol.look (tenv, s) with
+              | Some t' ->
+                  if body_type.ty != t' then
+                    ErrorMsg.error_pos pos
+                      (Printf.sprintf
+                         "function return type does not match body, required \
+                          %s got %s instead"
+                         (Types.to_string t')
+                         (Types.to_string body_type.ty));
+                  t'
+              | None ->
                   ErrorMsg.error_pos pos
-                    "function return type does not match body"
-            | None ->
-                ErrorMsg.error_pos pos
-                  (Printf.sprintf "undefined type: %s" (Symbol.name s)))
-        | None -> ());
+                    (Printf.sprintf "undefined type: %s" (Symbol.name s));
+                  Types.INT)
+          | None -> Types.NIL
+          (* If no return type is specified, then this is a procedure *)
+        in
         {
           venv =
             S.enter
               ( venv,
                 name,
-                E.FunEntry
-                  {
-                    formals = List.map param_to_type params;
-                    result = ret_type.ty;
-                  } );
+                E.FunEntry { formals = param_types; result = ret_type } );
           tenv;
         }
 
   and transDecs (venv, tenv, decs) =
-    List.fold_right
-      (fun dec { venv; tenv } -> transDec (venv, tenv, dec))
-      decs { venv; tenv }
+    List.fold_left
+      (fun { venv; tenv } dec -> transDec (venv, tenv, dec))
+      { venv; tenv } decs
 
   (* Translates Absyn.ty to Types.ty *)
   (* TODO: Make this work with recursive types *)
@@ -337,7 +365,7 @@ module Semant : SEMANT = struct
             Types.NAME (t, ref None))
     | RecordTy fields ->
         let field_to_sym_type acc (field : A.field) =
-          (field.name, Types.INT) :: acc
+          acc @ [ (field.name, symbol_to_type field.typ tenv field.pos) ]
         in
         let res = List.fold_left field_to_sym_type [] fields in
         Types.RECORD (res, ref ())
@@ -351,3 +379,20 @@ module Semant : SEMANT = struct
 
   let transProg exp = ignore (transExp (E.base_venv, E.base_tenv, exp))
 end
+
+open Base
+open Errormsg
+
+let%test_unit "successfully_run_semant_on_test_files" =
+  let do_file filename =
+    ignore (List.map ~f:Semant.transProg (Parser.parse_file filename))
+  in
+  let res =
+    let test_dir = "../../../tests/" in
+    Caml.Sys.readdir test_dir |> Array.to_list
+    |> List.filter ~f:(fun x -> String.(Caml.Filename.extension x = ".tig"))
+    |> List.map ~f:(fun fname ->
+           do_file (test_dir ^ fname);
+           !ErrorMsg.anyErrors)
+  in
+  [%test_eq: bool list] res (List.map ~f:(fun _ -> false) res)

@@ -1,6 +1,7 @@
 %{
     open Absyn
     open Symbol
+    open Errormsg
     module A  = Absyn
 
     let get_pos_cnum () = (Parsing.symbol_start_pos ()).pos_cnum
@@ -24,6 +25,7 @@
 %nonassoc ELSE
 
 %left LOW_PREC /* Used to resolve shift-reduce conflicts (TODO: Find a better name) */
+%right ASSIGN
 %left AND OR
 %left EQ NEQ
 %left LT GT LE GE
@@ -31,30 +33,12 @@
 %left TIMES DIVIDE
 %left NEG  /* negation -- unary minus */
 %left LBRACK LPAREN DOT /* Array access and fncall */
-%right ASSIGN
 
 %start input
 %type <A.exp> input
 
 %% /* Grammar rules and actions */
-input: /* empty */ { A.SeqExp [] }
-    | input statement {
-        match $2 with
-        | A.NilExp _ -> $1
-        | _ -> (
-            match $1 with
-            | A.SeqExp [] -> A.SeqExp [($2, (get_pos_cnum_of_n 2))]
-            | A.SeqExp l -> A.SeqExp (l @ [($2, (get_pos_cnum_of_n 2))])
-            | _ -> raise InternalError) 
-    }
-
-statement: let_stmt { $1 }
-    /*
-     * SR conflict here when a SEMICOLON is encountered
-     * but it is fine as we a shift is favored, i.e. the
-     * SEMICOLON is always consumed to form a longer stmt.
-     */
-    | nonempty_expseq { $1 }
+input: let_stmt { $1 }
 
 decs: dec { [$1] }
     | decs dec { $1 @ [$2] }
@@ -113,7 +97,7 @@ vardec: VAR ID ASSIGN exp {
      }
 
 /* function id (tyfields) = exp */
-fundec: FUNCTION ID LPAREN tyfields RPAREN EQ statement {
+fundec: FUNCTION ID LPAREN tyfields RPAREN EQ exp {
         FunctionDec {
             name = (Symbol.to_symbol $2);
             params = $4;
@@ -123,7 +107,7 @@ fundec: FUNCTION ID LPAREN tyfields RPAREN EQ statement {
         }
     }
     /* function id (tyfields) : type-id = exp */
-    | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ statement {
+    | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp {
         FunctionDec {
             name = (Symbol.to_symbol $2);
             params = $4;
@@ -134,7 +118,7 @@ fundec: FUNCTION ID LPAREN tyfields RPAREN EQ statement {
     }
 
 let_stmt: LET decs IN expseq END { 
-    LetExp {
+    A.LetExp {
         decs = $2;
         body = $4;
         pos = (get_pos_cnum ())
@@ -152,7 +136,10 @@ nonempty_expseq: exp %prec LOW_PREC { A.SeqExp [($1, (get_pos_cnum ()))] }
         | _ -> raise InternalError (* This can never happen *)
      }
     /* TODO: Verify correctness of AST when an error is encountered */
-    | error SEMICOLON exp %prec LOW_PREC { A.SeqExp [($3, (get_pos_cnum ()))] }
+    | error SEMICOLON exp %prec LOW_PREC {
+        ErrorMsg.error_pos (get_pos_cnum ()) "Syntax error";
+        A.SeqExp [($3, (get_pos_cnum ()))]
+     }
 
 exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
     | INT { A.IntExp $1 }
@@ -199,7 +186,11 @@ exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
     | while_stmt { $1 }
     | LPAREN expseq RPAREN { $2 }
     /* TODO: Figure out what to return for error production */
-    | LPAREN error RPAREN { A.NilExp (get_pos_cnum_of_n 2)}
+    | LPAREN error RPAREN {
+        ErrorMsg.error_pos (get_pos_cnum_of_n 2) "Syntax error";
+        A.NilExp (get_pos_cnum_of_n 2)
+     }
+    | let_stmt { $1 }
 
 var: ID DOT ID {
         A.FieldVar (
@@ -220,19 +211,19 @@ assignment: var ASSIGN exp {
     AssignExp { var = $1; exp = $3; pos = (get_pos_cnum ()) }
  }
 
-while_stmt: WHILE exp DO statement {
+while_stmt: WHILE exp DO exp %prec LOW_PREC {
     WhileExp { test = $2; body = $4; pos = (get_pos_cnum ()) }
 }
 
 /* Conflict resolution of shifting gives the desired behaviour */
-if_stmt: IF exp THEN statement {
+if_stmt: IF exp THEN exp{
        A.IfExp { test = $2; then' = $4; else' = None; pos = (get_pos_cnum ()) }
      }
-    | IF exp THEN statement ELSE statement { 
+    | IF exp THEN exp ELSE exp { 
         A.IfExp { test = $2; then' = $4; else' = Some $6; pos = (get_pos_cnum ()) }
      }
 
-for_stmt: FOR ID ASSIGN exp TO exp DO statement { 
+for_stmt: FOR ID ASSIGN exp TO exp DO exp %prec LOW_PREC { 
     ForExp {
         var = (Symbol.to_symbol $2);
         escape = ref true;
