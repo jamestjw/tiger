@@ -28,6 +28,7 @@
             ("assign", Grammar.ASSIGN);
             ("or", Grammar.OR);
             ("and", Grammar.AND);
+            ("nil", Grammar.NIL);
         ]
 
     let incr_linenum lexbuf =
@@ -42,7 +43,7 @@
 }
 
 let digit = ['0'-'9']
-let id = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9']*
+let id = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 rule token = parse
     | digit+ as inum { Grammar.INT (Int.of_string inum) }
