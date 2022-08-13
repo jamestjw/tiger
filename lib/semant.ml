@@ -18,7 +18,7 @@ module type SEMANT = sig
 
   val transVar : venv * tenv * A.var -> expty
   val transExp : venv * tenv * A.exp -> expty
-  val transDec : venv * tenv * A.dec -> decty
+  val transDecs : venv * tenv * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
   val transProg : A.exp -> unit
 end
@@ -43,7 +43,7 @@ module Semant : SEMANT = struct
 
   let symbol_to_type s tenv pos =
     match Symbol.look (tenv, s) with
-    | Some t' -> actual_ty t'
+    | Some t' -> t'
     | None ->
         ErrorMsg.error_pos pos
           (Printf.sprintf "undefined type %s" (Symbol.name s));
@@ -71,18 +71,36 @@ module Semant : SEMANT = struct
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined function %s" (S.name id));
               { exp = (); ty = Types.INT })
-      | A.OpExp { left; oper = _; right; pos } ->
+      | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper ->
           let { ty = left_ty; _ } = trexp left in
           let { ty = right_ty; _ } = trexp right in
-          if
-            left_ty != right_ty
-            || (left_ty != Types.INT && left_ty != Types.STRING)
-          then
-            ErrorMsg.error_pos pos
-              ("both expression should have matching types (INT or STRING)"
-              ^ Printf.sprintf "left:%s right:%s" (Types.to_string left_ty)
-                  (Types.to_string right_ty));
+          (match left_ty with
+          | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
+          | Types.ARRAY _ ->
+              if not (Types.equals (left_ty, right_ty)) then
+                ErrorMsg.error_pos pos
+                  (Printf.sprintf
+                     "both expressions should have matching types, left:%s \
+                      right:%s"
+                     (Types.to_string left_ty) (Types.to_string right_ty))
+          | _ ->
+              ErrorMsg.error_pos pos
+                "comparison operators are only compatible with INT, STRING, \
+                 ARRAY and RECORD types");
           { exp = (); ty = Types.INT }
+      | A.OpExp { left; oper; right; _ } when A.is_arithmetic_op oper ->
+          check_type
+            ( Types.INT,
+              trexp left,
+              A.exp_pos left,
+              "INT arguments required for arithmetic operator" );
+          check_type
+            ( Types.INT,
+              trexp right,
+              A.exp_pos right,
+              "INT arguments required for arithmetic operator" );
+          { exp = (); ty = Types.INT }
+      | A.OpExp _ -> raise Internal_error
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
           | Some t -> (
@@ -101,9 +119,11 @@ module Semant : SEMANT = struct
                    in
                    if StringSet.equal input_symbols required_symbols then
                      let sorted_fields =
-                       List.sort
-                         (fun (s1, _) (s2, _) -> Symbol.compare_symbol s1 s2)
-                         fields
+                       List.map
+                         (fun (s, t) -> (s, actual_ty t))
+                         (List.sort
+                            (fun (s1, _) (s2, _) -> Symbol.compare_symbol s1 s2)
+                            fields)
                      in
                      let sorted_input_fields =
                        List.map
@@ -115,7 +135,7 @@ module Semant : SEMANT = struct
                      in
                      List.iter2
                        (fun (s1, t1) (_, t2) ->
-                         if not (t1 = t2) then
+                         if not (Types.equals (t1, t2)) then
                            ErrorMsg.error_pos pos
                              (Printf.sprintf
                                 "type mismatch for field '%s', expected %s \
@@ -167,7 +187,7 @@ module Semant : SEMANT = struct
           match else' with
           | Some e ->
               let else_type = (trexp e).ty in
-              if then_type.ty != else_type then
+              if not (Types.equals (then_type.ty, else_type)) then
                 ErrorMsg.error_pos (A.exp_pos then')
                   "type mismatch in then and else clause";
               { exp = (); ty = then_type.ty }
@@ -211,17 +231,21 @@ module Semant : SEMANT = struct
       (* TODO: Check that the BREAK statement is within a for/while statement *)
       | BreakExp _ -> { exp = (); ty = Types.NIL }
       | ArrayExp { typ; size; init; pos } -> (
+          check_type
+            (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
           match Symbol.look (tenv, typ) with
-          | Some (Types.ARRAY (t, _) as ty) ->
-              check_type
-                (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
-              check_type
-                ( t,
-                  trexp init,
-                  A.exp_pos init,
-                  Printf.sprintf "array initial value expected to be of type %s"
-                    (Types.to_string t) );
-              { exp = (); ty }
+          | Some ty -> (
+              match actual_ty ty with
+              | Types.ARRAY (t, _) as ty' ->
+                  check_type
+                    ( t,
+                      trexp init,
+                      A.exp_pos init,
+                      Printf.sprintf
+                        "array initial value expected to be of type %s"
+                        (Types.to_string t) );
+                  { exp = (); ty = ty' }
+              | _ -> { exp = (); ty = Types.INT })
           | _ ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined array type %s" (S.name typ));
@@ -233,9 +257,11 @@ module Semant : SEMANT = struct
     (* Used to check that function arguments match the call signature *)
     and argMatchesType (exp, ty) =
       let { ty = exp_ty; _ } = trexp exp in
-      if exp_ty != ty then
+      let ty' = actual_ty ty in
+      if exp_ty != ty' then
         ErrorMsg.error_pos (Absyn.exp_pos exp)
-          (Printf.sprintf "Expected argument of type")
+          (Printf.sprintf "Expected argument of type %s got %s instead"
+             (Types.to_string ty') (Types.to_string exp_ty))
     in
     trexp exp
 
@@ -256,7 +282,7 @@ module Semant : SEMANT = struct
                     ErrorMsg.error_pos pos
                       "attempted to access field that does not exist in record";
                     Types.INT
-                | (s, t) :: _ when s = sym -> t
+                | (s, t) :: _ when s = sym -> actual_ty t
                 | _ :: rest -> find_field rest
               in
               { exp = (); ty = find_field fields }
@@ -278,8 +304,86 @@ module Semant : SEMANT = struct
     in
     trvar var
 
-  and transDec (venv, tenv, dec) =
+  (* Adds dummy header to the type environment
+     with an empty body for type and function
+     declarations *)
+  and extractHeader (venv, tenv, dec) =
+    let sym_to_type (sym, pos) =
+      match Symbol.look (tenv, sym) with
+      | Some t' -> t'
+      | _ ->
+          ErrorMsg.error_pos pos
+            (Printf.sprintf "undefined type: %s" (Symbol.name sym));
+          Types.INT
+    in
     match dec with
+    | A.FunctionDec { name; params; result; _ } ->
+        let ret_type =
+          match result with
+          | Some (s, pos) -> sym_to_type (s, pos)
+          (* If no return type is specified, then this is a procedure *)
+          | _ -> Types.NIL
+        in
+
+        {
+          venv =
+            S.enter
+              ( venv,
+                name,
+                E.FunEntry
+                  {
+                    formals =
+                      List.map
+                        (fun (param : A.field) ->
+                          sym_to_type (param.typ, param.pos))
+                        params;
+                    result = ret_type;
+                  } );
+          tenv;
+        }
+    | A.TypeDec { name; _ } ->
+        (* Add in placeholder type *)
+        { venv; tenv = S.enter (tenv, name, Types.NAME (name, ref None)) }
+    (* Do nothing for other types *)
+    | _ -> { venv; tenv }
+
+  (* Actually process the bodies of type/function
+     declarations and variable definitions *)
+  and processBody (venv, tenv, dec) =
+    match dec with
+    | A.TypeDec { name; ty; _ } ->
+        let t = transTy (tenv, ty) in
+        (match Symbol.look (tenv, name) with
+        | Some (Types.NAME (_, t')) -> t' := Some t
+        | _ -> raise Internal_error);
+        { venv; tenv }
+    | A.FunctionDec { name; params; body; _ } ->
+        let param_to_type (param : A.field) =
+          match Symbol.look (tenv, param.typ) with
+          | Some t' -> actual_ty t'
+          | _ -> Types.INT
+        in
+        (* Env with function parameters *)
+        let venv' =
+          let do_param env param =
+            let ty = param_to_type param in
+            Symbol.enter (env, param.name, E.VarEntry { ty })
+          in
+          List.fold_left do_param venv params
+        in
+        let body_type = transExp (venv', tenv, body) in
+        (match Symbol.look (venv, name) with
+        | Some (FunEntry { result; _ }) ->
+            let res_type = actual_ty result in
+            if not (Types.equals (res_type, body_type.ty)) then
+              ErrorMsg.error_pos (A.exp_pos body)
+                (Printf.sprintf
+                   "function return type does not match body, required %s got \
+                    %s instead"
+                   (Types.to_string result)
+                   (Types.to_string body_type.ty))
+        | _ -> raise Internal_error);
+        { venv; tenv }
     | A.VarDec { name; typ = None; init; _ } ->
         let { ty; _ } = transExp (venv, tenv, init) in
         { venv = S.enter (venv, name, E.VarEntry { ty }); tenv }
@@ -296,69 +400,32 @@ module Semant : SEMANT = struct
             ErrorMsg.error_pos t_pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t)));
         { venv = S.enter (venv, name, E.VarEntry { ty = exp_ty.ty }); tenv }
-    | A.TypeDec { name; ty; _ } ->
-        { venv; tenv = S.enter (tenv, name, transTy (tenv, ty)) }
-    | FunctionDec { name; params; result; body; _ } ->
-        (* TODO: Load arguments into body *)
-        let param_to_type (param : A.field) =
-          match Symbol.look (tenv, param.typ) with
-          | Some t' -> actual_ty t'
-          | _ ->
-              ErrorMsg.error_pos param.pos
-                (Printf.sprintf "undefined type: %s" (Symbol.name param.typ));
-              Types.INT
-        in
-        let venv', param_types =
-          let do_param param (env, l) =
-            let ty = param_to_type param in
-            (Symbol.enter (env, param.name, E.VarEntry { ty }), ty :: l)
-          in
-          (* TODO: Use fold_left instead? *)
-          List.fold_right do_param params (venv, [])
-        in
-        let body_type = transExp (venv', tenv, body) in
-        (* Verify that the return type matches the body *)
-        let ret_type =
-          match result with
-          | Some (s, pos) -> (
-              match Symbol.look (tenv, s) with
-              | Some t' ->
-                  if body_type.ty != t' then
-                    ErrorMsg.error_pos pos
-                      (Printf.sprintf
-                         "function return type does not match body, required \
-                          %s got %s instead"
-                         (Types.to_string t')
-                         (Types.to_string body_type.ty));
-                  t'
-              | None ->
-                  ErrorMsg.error_pos pos
-                    (Printf.sprintf "undefined type: %s" (Symbol.name s));
-                  Types.INT)
-          | None -> Types.NIL
-          (* If no return type is specified, then this is a procedure *)
-        in
-        {
-          venv =
-            S.enter
-              ( venv,
-                name,
-                E.FunEntry { formals = param_types; result = ret_type } );
-          tenv;
-        }
 
+  (* Two passes
+     1. Process headers of type/function declarations and
+        set up placeholders.
+     2. Process bodies of type/function declarations and
+        replace placeholders with actual bodies. Also handles
+        variable definitions (we do it here as these
+        definitions might use recursive types and we need to
+        call actual_ty on them)*)
   and transDecs (venv, tenv, decs) =
+    let { venv = venv'; tenv = tenv' } =
+      List.fold_left
+        (fun { venv = v; tenv = t } dec -> extractHeader (v, t, dec))
+        { venv; tenv } decs
+    in
     List.fold_left
-      (fun { venv; tenv } dec -> transDec (venv, tenv, dec))
-      { venv; tenv } decs
+      (fun { venv = v; tenv = t } dec -> processBody (v, t, dec))
+      { venv = venv'; tenv = tenv' }
+      decs
 
   (* Translates Absyn.ty to Types.ty *)
-  (* TODO: Make this work with recursive types *)
   and transTy (tenv, ty) =
     match ty with
     | NameTy (t, pos) -> (
         match Symbol.look (tenv, t) with
-        | Some t' -> Types.NAME (t, ref (Some (actual_ty t')))
+        | Some t' -> Types.NAME (t, ref (Some t'))
         | None ->
             ErrorMsg.error_pos pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t));

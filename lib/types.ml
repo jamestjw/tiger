@@ -23,4 +23,17 @@ module Types = struct
     | ARRAY _ -> "ARRAY"
     | NAME _ -> "NAME"
     | UNIT -> "()"
+
+  let equals = function
+    | RECORD (_, u1), RECORD (_, u2) -> u1 = u2
+    | ARRAY (_, u1), ARRAY (_, u2) -> u1 = u2
+    | NIL, NIL -> true
+    | INT, INT -> true
+    | STRING, STRING -> true
+    | UNIT, UNIT -> true
+    | NAME (n1, _), NAME (n2, _) -> n1 = n2
+    (* NIL is compatible with all RECORDS *)
+    | NIL, RECORD _ -> true
+    | RECORD _, NIL -> true
+    | _ -> false
 end

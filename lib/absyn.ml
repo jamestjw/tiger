@@ -98,4 +98,7 @@ module Absyn = struct
     | BreakExp pos -> pos
     | LetExp { pos; _ } -> pos
     | ArrayExp { pos; _ } -> pos
+
+  let is_arithmetic_op op = List.mem op [ PlusOp; MinusOp; TimesOp; DivideOp ]
+  let is_comparison_op op = List.mem op [ EqOp; NeqOp; LtOp; LeOp; GtOp; GeOp ]
 end
