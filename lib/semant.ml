@@ -13,12 +13,13 @@ module type SEMANT = sig
   type tenv
   type expty
   type decty
+  type senv (* Scope environment *)
 
   exception Internal_error
 
-  val transVar : venv * tenv * A.var -> expty
-  val transExp : venv * tenv * A.exp -> expty
-  val transDecs : venv * tenv * A.dec list -> decty
+  val transVar : venv * tenv * senv * A.var -> expty
+  val transExp : venv * tenv * senv * A.exp -> expty
+  val transDecs : venv * tenv * senv * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
   val transProg : A.exp -> unit
 end
@@ -28,6 +29,7 @@ module Semant : SEMANT = struct
   type tenv = Types.ty Symbol.table
   type expty = { exp : Translate.exp; ty : Types.ty }
   type decty = { venv : venv; tenv : tenv }
+  type senv = { in_loop : bool }
 
   exception Internal_error
 
@@ -41,6 +43,8 @@ module Semant : SEMANT = struct
 
   module StringSet = Set.Make (String)
 
+  let base_senv = { in_loop = false }
+
   let symbol_to_type s tenv pos =
     match Symbol.look (tenv, s) with
     | Some t' -> t'
@@ -49,7 +53,7 @@ module Semant : SEMANT = struct
           (Printf.sprintf "undefined type %s" (Symbol.name s));
         Types.INT
 
-  let rec transExp (venv, tenv, exp) =
+  let rec transExp (venv, tenv, senv, exp) =
     let rec trexp = function
       | A.NilExp _ -> { exp = (); ty = Types.NIL }
       | A.IntExp _ -> { exp = (); ty = Types.INT }
@@ -164,7 +168,7 @@ module Semant : SEMANT = struct
             { exp = (); ty = Types.NIL }
             exps
       | AssignExp { var; exp; pos } ->
-          let { ty = var_type; _ } = transVar (venv, tenv, var) in
+          let { ty = var_type; _ } = transVar (venv, tenv, senv, var) in
           let { ty = exp_type; _ } = trexp exp in
           if var_type != exp_type then
             ErrorMsg.error_pos pos
@@ -204,9 +208,10 @@ module Semant : SEMANT = struct
               trexp test,
               A.exp_pos test,
               "while statement condition must be an INT" );
+          let senv' = { in_loop = true } in
           check_type
             ( Types.NIL,
-              trexp body,
+              transExp (venv, tenv, senv', body),
               A.exp_pos body,
               "while statement body must return NIL" );
           { exp = (); ty = Types.NIL }
@@ -222,14 +227,18 @@ module Semant : SEMANT = struct
               A.exp_pos hi,
               "for loop end variable must be an INT" );
           let venv' = Symbol.enter (venv, var, E.VarEntry { ty = Types.INT }) in
+          let senv' = { in_loop = true } in
           check_type
             ( Types.NIL,
-              transExp (venv', tenv, body),
+              transExp (venv', tenv, senv', body),
               A.exp_pos body,
               "for loop body must return NIL" );
           { exp = (); ty = Types.NIL }
-      (* TODO: Check that the BREAK statement is within a for/while statement *)
-      | BreakExp _ -> { exp = (); ty = Types.NIL }
+      | BreakExp pos ->
+          if not senv.in_loop then
+            ErrorMsg.error_pos pos
+              "encountered break statement when not in loop";
+          { exp = (); ty = Types.NIL }
       | ArrayExp { typ; size; init; pos } -> (
           check_type
             (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
@@ -251,9 +260,9 @@ module Semant : SEMANT = struct
                 (Printf.sprintf "undefined array type %s" (S.name typ));
               { exp = (); ty = Types.ARRAY (Types.INT, ref ()) })
       | LetExp { decs; body; _ } ->
-          let { venv; tenv } = transDecs (venv, tenv, decs) in
-          transExp (venv, tenv, body)
-      | VarExp var -> transVar (venv, tenv, var)
+          let { venv; tenv } = transDecs (venv, tenv, senv, decs) in
+          transExp (venv, tenv, senv, body)
+      | VarExp var -> transVar (venv, tenv, senv, var)
     (* Used to check that function arguments match the call signature *)
     and argMatchesType (exp, ty) =
       let { ty = exp_ty; _ } = trexp exp in
@@ -265,7 +274,7 @@ module Semant : SEMANT = struct
     in
     trexp exp
 
-  and transVar (venv, tenv, var) =
+  and transVar (venv, tenv, senv, var) =
     let rec trvar = function
       | A.SimpleVar (id, pos) -> (
           match Symbol.look (venv, id) with
@@ -293,7 +302,7 @@ module Semant : SEMANT = struct
       | A.SubscriptVar (var, exp, pos) -> (
           check_type
             ( Types.INT,
-              transExp (venv, tenv, exp),
+              transExp (venv, tenv, senv, exp),
               pos,
               "non-INT type cannot be used as index into array" );
           match actual_ty (trvar var).ty with
@@ -349,7 +358,7 @@ module Semant : SEMANT = struct
 
   (* Actually process the bodies of type/function
      declarations and variable definitions *)
-  and processBody (venv, tenv, dec) =
+  and processBody (venv, tenv, senv, dec) =
     match dec with
     | A.TypeDec { name; ty; _ } ->
         let t = transTy (tenv, ty) in
@@ -371,7 +380,7 @@ module Semant : SEMANT = struct
           in
           List.fold_left do_param venv params
         in
-        let body_type = transExp (venv', tenv, body) in
+        let body_type = transExp (venv', tenv, senv, body) in
         (match Symbol.look (venv, name) with
         | Some (FunEntry { result; _ }) ->
             let res_type = actual_ty result in
@@ -385,10 +394,10 @@ module Semant : SEMANT = struct
         | _ -> raise Internal_error);
         { venv; tenv }
     | A.VarDec { name; typ = None; init; _ } ->
-        let { ty; _ } = transExp (venv, tenv, init) in
+        let { ty; _ } = transExp (venv, tenv, senv, init) in
         { venv = S.enter (venv, name, E.VarEntry { ty }); tenv }
     | A.VarDec { name; typ = Some (t, t_pos); init; _ } ->
-        let exp_ty = transExp (venv, tenv, init) in
+        let exp_ty = transExp (venv, tenv, senv, init) in
         (match Symbol.look (tenv, t) with
         | Some t' ->
             if actual_ty t' != exp_ty.ty then
@@ -409,14 +418,14 @@ module Semant : SEMANT = struct
         variable definitions (we do it here as these
         definitions might use recursive types and we need to
         call actual_ty on them)*)
-  and transDecs (venv, tenv, decs) =
+  and transDecs (venv, tenv, senv, decs) =
     let { venv = venv'; tenv = tenv' } =
       List.fold_left
         (fun { venv = v; tenv = t } dec -> extractHeader (v, t, dec))
         { venv; tenv } decs
     in
     List.fold_left
-      (fun { venv = v; tenv = t } dec -> processBody (v, t, dec))
+      (fun { venv = v; tenv = t } dec -> processBody (v, t, senv, dec))
       { venv = venv'; tenv = tenv' }
       decs
 
@@ -444,7 +453,8 @@ module Semant : SEMANT = struct
               (Printf.sprintf "undefined type: %s" (Symbol.name t));
             Types.ARRAY (Types.INT, ref ()))
 
-  let transProg exp = ignore (transExp (E.base_venv, E.base_tenv, exp))
+  let transProg exp =
+    ignore (transExp (E.base_venv, E.base_tenv, base_senv, exp))
 end
 
 open Base
@@ -463,3 +473,18 @@ let%test_unit "successfully_run_semant_on_test_files" =
            !ErrorMsg.anyErrors)
   in
   [%test_eq: bool list] res (List.map ~f:(fun _ -> false) res)
+
+let%test_unit "legal_break_statement_in_for_loop" =
+  let input_string = "let in for i := 0 to 10 do break end" in
+  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  [%test_eq: bool] !ErrorMsg.anyErrors false
+
+let%test_unit "legal_break_statement_in_while_loop" =
+  let input_string = "let in while 1 do break end" in
+  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  [%test_eq: bool] !ErrorMsg.anyErrors false
+
+let%expect_test "illegal_break_statement_outside_of_for_loop" =
+  let input_string = "let in break end" in
+  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  [%expect {| :1.7: encountered break statement when not in loop |}]

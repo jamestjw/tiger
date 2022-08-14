@@ -40,7 +40,7 @@
 %% /* Grammar rules and actions */
 input: let_stmt { $1 }
 
-decs: dec { [$1] }
+decs: /* empty */ { [] }
     | decs dec { $1 @ [$2] }
 
 dec: tydec { $1 }
