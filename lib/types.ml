@@ -13,15 +13,18 @@ module Types = struct
     | NAME of Symbol.symbol * ty option ref
     | UNIT
 
-  (* TODO: Improve this, RECORD and NAME should more
-     clearly describe its contents *)
-  let to_string = function
-    | RECORD _ -> "RECORD"
+  let rec to_string = function
+    | RECORD (fields, _) ->
+        let field_to_string (s, t) =
+          Printf.sprintf "%s: %s" (Symbol.name s) (to_string t)
+        in
+        Printf.sprintf "RECORD{%s}"
+          (String.concat ", " (List.map field_to_string fields))
     | NIL -> "NIL"
     | INT -> "INT"
     | STRING -> "STRING"
-    | ARRAY _ -> "ARRAY"
-    | NAME _ -> "NAME"
+    | ARRAY (t, _) -> Printf.sprintf "ARRAY<%s>" (to_string t)
+    | NAME (s, _) -> Printf.sprintf "NAME<%s>" (Symbol.name s)
     | UNIT -> "()"
 
   let equals = function
@@ -37,3 +40,34 @@ module Types = struct
     | RECORD _, NIL -> true
     | _ -> false
 end
+
+open Base
+
+let%test_unit "simple_record_to_string" =
+  let expected = "RECORD{x: INT, y: INT}" in
+  let t =
+    Types.RECORD
+      ( [ (Symbol.to_symbol "x", Types.INT); (Symbol.to_symbol "y", Types.INT) ],
+        ref () )
+  in
+  [%test_eq: string] (Types.to_string t) expected
+
+let%test_unit "record_with_name_to_string" =
+  let expected = "RECORD{x: INT, y: NAME<CUSTOM>}" in
+  let t =
+    Types.RECORD
+      ( [
+          (Symbol.to_symbol "x", Types.INT);
+          ( Symbol.to_symbol "y",
+            Types.NAME (Symbol.to_symbol "CUSTOM", ref None) );
+        ],
+        ref () )
+  in
+  [%test_eq: string] (Types.to_string t) expected
+
+let%test_unit "array_with_name_to_string" =
+  let expected = "ARRAY<NAME<CUSTOM>>" in
+  let t =
+    Types.ARRAY (Types.NAME (Symbol.to_symbol "CUSTOM", ref None), ref ())
+  in
+  [%test_eq: string] (Types.to_string t) expected
