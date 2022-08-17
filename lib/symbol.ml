@@ -1,35 +1,38 @@
+open Base
+open Errormsg
+
 module type SYMBOL = sig
-  type symbol
+  type symbol [@@deriving compare, sexp, equal]
 
   val to_symbol : string -> symbol
   val name : symbol -> string
-  val compare_symbol : symbol -> symbol -> int
 
-  type 'a table
+  type 'a t
 
-  val empty : 'a table
-  val enter : 'a table * symbol * 'a -> 'a table
-  val look : 'a table * symbol -> 'a option
+  val empty : 'a t
+  val enter : 'a t * symbol * 'a -> 'a t
+  val look : 'a t * symbol -> 'a option
 end
 
 module Symbol : SYMBOL = struct
-  type symbol = string * int
-
-  let sizeHint = 128
+  type symbol = string * int [@@deriving compare, sexp, equal]
 
   module H = Hashtbl
 
-  let hashtable = H.create sizeHint
+  let hashtable = H.create (module String)
   let nextsym = ref 0
 
   let to_symbol name =
     let i =
-      try H.find hashtable name
-      with Not_found ->
-        let i = !nextsym in
-        nextsym := i + 1;
-        H.add hashtable name i;
-        i
+      match H.find hashtable name with
+      | Some i' -> i'
+      | None ->
+          let i = !nextsym in
+          nextsym := i + 1;
+          (match H.add hashtable ~key:name ~data:i with
+          | `Ok -> ()
+          | `Duplicate -> ErrorMsg.impossible "Duplicate symbol");
+          i
     in
     (name, i)
 
@@ -38,9 +41,9 @@ module Symbol : SYMBOL = struct
   let compare_symbol s1 s2 = String.compare (name s1) (name s2)
 
   (* Map that has an Int key and 'a value *)
-  module IntMap = Map.Make (Int)
+  module IntMap = Caml.Map.Make (Int)
 
-  type 'a table = 'a IntMap.t
+  type 'a t = 'a IntMap.t
 
   let empty = IntMap.empty
   let enter (t, (_, s_i), v) = IntMap.add s_i v t

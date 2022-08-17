@@ -25,8 +25,8 @@ module type SEMANT = sig
 end
 
 module Semant : SEMANT = struct
-  type venv = Env.enventry Symbol.table
-  type tenv = Types.ty Symbol.table
+  type venv = Env.enventry Symbol.t
+  type tenv = Types.ty Symbol.t
   type expty = { exp : Translate.exp; ty : Types.ty }
   type decty = { venv : venv; tenv : tenv }
   type senv = { in_loop : bool }

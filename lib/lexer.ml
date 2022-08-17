@@ -118,7 +118,7 @@ and __ocaml_lex_token_rec lexbuf __ocaml_lex_state =
   | 29 ->
       ErrorMsg.error lexbuf "Invalid token";
       token lexbuf
-  | 30 -> raise End_of_file
+  | 30 -> Grammar.EOF
   | __ocaml_lex_state ->
       lexbuf.Lexing.refill_buff lexbuf;
       __ocaml_lex_token_rec lexbuf __ocaml_lex_state
@@ -139,8 +139,8 @@ and __ocaml_lex_comment_rec lexbuf __ocaml_lex_state =
 let parse lexbuf =
   let rec parse' lexbuf acc =
     let curr_token = token lexbuf in
-    try parse' lexbuf (curr_token :: acc)
-    with End_of_file -> curr_token :: acc
+    if Poly.(curr_token = Grammar.EOF) then curr_token :: acc
+    else parse' lexbuf (curr_token :: acc)
   in
   let res = List.rev (parse' lexbuf []) in
   if !ErrorMsg.anyErrors then raise ErrorMsg.Error else res
@@ -149,13 +149,13 @@ let parse lexbuf =
 let%test_unit "parse_single_int" =
   ErrorMsg.reset ();
   let lexbuf = Lexing.from_string "42" in
-  [%test_eq: Grammar.token list] (parse lexbuf) [ Grammar.INT 42 ]
+  [%test_eq: Grammar.token list] (parse lexbuf) [ Grammar.INT 42; Grammar.EOF ]
 
 let%test_unit "parse_random_keywords" =
   ErrorMsg.reset ();
   let lexbuf = Lexing.from_string "var type break" in
   [%test_eq: Grammar.token list] (parse lexbuf)
-    [ Grammar.VAR; Grammar.TYPE; Grammar.BREAK ]
+    [ Grammar.VAR; Grammar.TYPE; Grammar.BREAK; Grammar.EOF ]
 
 let%test_unit "parse_test1.tig" =
   ErrorMsg.reset ();
@@ -187,12 +187,14 @@ let%test_unit "parse_test1.tig" =
       Grammar.IN;
       Grammar.ID "arr1";
       Grammar.END;
+      Grammar.EOF;
     ]
 
 let%test_unit "parse_string" =
   ErrorMsg.reset ();
   let lexbuf = Lexing.from_string "\"A string\"" in
-  [%test_eq: Grammar.token list] (parse lexbuf) [ Grammar.STRING "A string" ]
+  [%test_eq: Grammar.token list] (parse lexbuf)
+    [ Grammar.STRING "A string"; Grammar.EOF ]
 
 exception Missing_exception
 

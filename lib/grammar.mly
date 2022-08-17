@@ -19,6 +19,7 @@
 %token ARRAY IF THEN ELSE WHILE FOR TO DO LET IN END OF
 %token BREAK NIL
 %token FUNCTION VAR TYPE
+%token EOF
 
 /* Used to resolve shift-reduce conflict (dangling else) */
 %nonassoc THEN
@@ -38,7 +39,7 @@
 %type <A.exp> input
 
 %% /* Grammar rules and actions */
-input: let_stmt { $1 }
+input: exp EOF { $1 }
 
 decs: /* empty */ { [] }
     | decs dec { $1 @ [$2] }
@@ -295,6 +296,7 @@ let sexp_of_token t =
   | FUNCTION -> Base.Sexp.List [ Base.Sexp.Atom "FUNCTION" ]
   | VAR -> Base.Sexp.List [ Base.Sexp.Atom "VAR" ]
   | TYPE -> Base.Sexp.List [ Base.Sexp.Atom "TYPE" ]
+  | EOF -> Base.Sexp.List [ Base.Sexp.Atom "EOF" ]
 
 let compare_token t1 t2 =
   if Base.Poly.(t1 = t2) then 0

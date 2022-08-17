@@ -1,7 +1,8 @@
 open Symbol
+open Base
 
 module Absyn = struct
-  type symbol = Symbol.symbol
+  type symbol = Symbol.symbol [@@deriving compare, sexp, equal]
 
   type var =
     | SimpleVar of symbol * int
@@ -35,6 +36,7 @@ module Absyn = struct
     | BreakExp of int
     | LetExp of { decs : dec list; body : exp; pos : int }
     | ArrayExp of { typ : symbol; size : exp; init : exp; pos : int }
+  [@@deriving compare, sexp]
 
   and var_dec_field = { name : symbol; ty : ty; pos : int }
 
@@ -48,11 +50,13 @@ module Absyn = struct
         pos : int;
       }
     | TypeDec of var_dec_field
+  [@@deriving compare, sexp]
 
   and ty =
     | NameTy of symbol * int
     | RecordTy of field list
     | ArrayTy of symbol * int
+  [@@deriving compare, sexp]
 
   and oper =
     | PlusOp
@@ -65,6 +69,7 @@ module Absyn = struct
     | LeOp
     | GtOp
     | GeOp
+  [@@deriving equal]
 
   and field = { name : symbol; escape : bool ref; typ : symbol; pos : int }
 
@@ -99,6 +104,9 @@ module Absyn = struct
     | LetExp { pos; _ } -> pos
     | ArrayExp { pos; _ } -> pos
 
-  let is_arithmetic_op op = List.mem op [ PlusOp; MinusOp; TimesOp; DivideOp ]
-  let is_comparison_op op = List.mem op [ EqOp; NeqOp; LtOp; LeOp; GtOp; GeOp ]
+  let is_arithmetic_op op =
+    List.mem [ PlusOp; MinusOp; TimesOp; DivideOp ] op ~equal:equal_oper
+
+  let is_comparison_op op =
+    List.mem [ EqOp; NeqOp; LtOp; LeOp; GtOp; GeOp ] op ~equal:equal_oper
 end

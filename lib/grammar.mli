@@ -45,6 +45,7 @@ type token =
   | FUNCTION
   | VAR
   | TYPE
+  | EOF
 
 val input : (Lexing.lexbuf -> token) -> Lexing.lexbuf -> A.exp
 val sexp_of_token : token -> Base.Sexp.t

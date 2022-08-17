@@ -1,16 +1,17 @@
 open Errormsg
+open Base
+open Absyn
+open Symbol
 
 exception Parse_error
 
 let parse lexbuf =
-  let rec parse' acc =
-    try parse' (acc @ [ Grammar.input Lexer.token lexbuf ]) with
-    | End_of_file -> acc
-    | Parsing.Parse_error ->
-        ErrorMsg.error lexbuf "Syntax error";
-        []
+  let res =
+    try [ Grammar.input Lexer.token lexbuf ]
+    with Caml.Parsing.Parse_error ->
+      ErrorMsg.error lexbuf "Syntax error";
+      []
   in
-  let res = parse' [] in
   if !ErrorMsg.anyErrors then raise Parse_error else res
 
 let parse_string s =
@@ -35,6 +36,40 @@ let%expect_test "successfully_parse_test_files" =
      |> List.map ~f:(fun fname -> parse_file (test_dir ^ fname)));
   [%expect]
 
-(* TODO: Write tests for AST production *)
-(* let%test_unit "produce_ast_simple_binary_exp" =
-   [%test_eq: Absyn.Absyn.exp list] (parse_string "x + y") [] *)
+let%test_unit "produce_ast_simple_binary_exp_with_ints" =
+  [%test_eq: Absyn.exp list] (parse_string "1 + 2")
+    [
+      Absyn.OpExp
+        {
+          left = Absyn.IntExp 1;
+          right = Absyn.IntExp 2;
+          oper = Absyn.PlusOp;
+          pos = 0;
+        };
+    ]
+
+let%test_unit "produce_ast_simple_binary_exp_with_vars" =
+  [%test_eq: Absyn.exp list] (parse_string "x - y")
+    [
+      Absyn.OpExp
+        {
+          left = Absyn.VarExp (Absyn.SimpleVar (Symbol.to_symbol "x", 0));
+          right = Absyn.VarExp (Absyn.SimpleVar (Symbol.to_symbol "y", 4));
+          oper = Absyn.MinusOp;
+          pos = 0;
+        };
+    ]
+
+let%test_unit "function_call_one_arg" =
+  [%test_eq: Absyn.exp list]
+    (parse_string "print(\"Hello world\")")
+    [
+      Absyn.CallExp
+        {
+          func = Symbol.to_symbol "print";
+          args = [ Absyn.StringExp ("Hello world", 6) ];
+          pos = 0;
+        };
+    ]
+
+(* TODO: Write more tests for other productions *)

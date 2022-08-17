@@ -84,7 +84,7 @@ rule token = parse
     | '\n' { incr_linenum lexbuf; token lexbuf } (* eat up newline and increment line pos in the lexbuf *)
     (* Print an error message and skip the current char *)
     | _ { (ErrorMsg.error lexbuf "Invalid token"); token lexbuf }
-    | eof { raise End_of_file }
+    | eof { Grammar.EOF }
 
 and comment = parse
     | "*/"
@@ -97,7 +97,7 @@ and comment = parse
     let parse lexbuf =
         let rec parse' lexbuf acc =
             let curr_token = token lexbuf in
-            try parse' lexbuf (curr_token :: acc) with End_of_file -> (curr_token :: acc)
+            if Poly.(curr_token = Grammar.EOF) then (curr_token :: acc) else parse' lexbuf (curr_token :: acc)
         in
         let res = List.rev (parse' lexbuf [])
         in
@@ -110,7 +110,7 @@ and comment = parse
     ErrorMsg.reset ();
     let lexbuf = Lexing.from_string "42" in
     [%test_eq: Grammar.token list] (parse lexbuf)
-        [ Grammar.INT 42; ]
+        [ Grammar.INT 42; Grammar.EOF ]
 
     let%test_unit "parse_random_keywords" =
     ErrorMsg.reset ();
@@ -120,6 +120,7 @@ and comment = parse
         Grammar.VAR;
         Grammar.TYPE;
         Grammar.BREAK;
+        Grammar.EOF;
         ]
 
     let%test_unit "parse_test1.tig" =
@@ -152,13 +153,14 @@ and comment = parse
         Grammar.IN;
         Grammar.ID "arr1";
         Grammar.END;
+        Grammar.EOF;
         ]
 
     let%test_unit "parse_string" =
     ErrorMsg.reset ();
     let lexbuf = Lexing.from_string "\"A string\"" in
     [%test_eq: Grammar.token list] (parse lexbuf)
-        [ Grammar.STRING "A string"; ]
+        [ Grammar.STRING "A string"; Grammar.EOF ]
 
     exception Missing_exception
 
