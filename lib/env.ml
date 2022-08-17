@@ -1,12 +1,19 @@
 open Symbol
 open Types
+open Translate
+open Temp
 
 module Env = struct
   type ty = Types.ty
 
   type enventry =
-    | VarEntry of { ty : ty }
-    | FunEntry of { formals : ty list; result : ty }
+    | VarEntry of { ty : ty; access : Translate.access }
+    | FunEntry of {
+        formals : ty list;
+        result : ty;
+        level : Translate.level;
+        label : Temp.label;
+      }
 
   let base_tenv =
     let types = [ ("int", Types.INT); ("string", Types.STRING) ] in
@@ -34,6 +41,7 @@ module Env = struct
     in
     List.fold_left
       (fun env (name, formals, ret_type) ->
+        let label = Temp.new_label () in
         Symbol.enter
           ( env,
             Symbol.to_symbol name,
@@ -41,6 +49,14 @@ module Env = struct
               {
                 formals = List.map (fun (_, t) -> t) formals;
                 result = ret_type;
+                level =
+                  Translate.new_level
+                    {
+                      parent = Translate.outermost;
+                      formals = List.map (fun _ -> false) formals;
+                      name = label;
+                    };
+                label;
               } ))
       Symbol.empty functions
 end

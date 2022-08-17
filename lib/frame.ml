@@ -70,3 +70,5 @@ module X86Frame : FRAME = struct
       (List.map ~f:(fun _ -> alloc_local frame true) expected)
       expected
 end
+
+module Frame : FRAME = X86Frame

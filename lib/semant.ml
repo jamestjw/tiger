@@ -3,6 +3,7 @@ open Symbol
 open Types
 open Absyn
 open Translate
+open Temp
 open Errormsg
 module A = Absyn
 module E = Env
@@ -17,9 +18,9 @@ module type SEMANT = sig
 
   exception Internal_error
 
-  val transVar : venv * tenv * senv * A.var -> expty
-  val transExp : venv * tenv * senv * A.exp -> expty
-  val transDecs : venv * tenv * senv * A.dec list -> decty
+  val transVar : venv * tenv * senv * Translate.level * A.var -> expty
+  val transExp : venv * tenv * senv * Translate.level * A.exp -> expty
+  val transDecs : venv * tenv * senv * Translate.level * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
   val transProg : A.exp -> unit
 end
@@ -53,28 +54,28 @@ module Semant : SEMANT = struct
           (Printf.sprintf "undefined type %s" (Symbol.name s));
         Types.INT
 
-  let rec transExp (venv, tenv, senv, exp) =
+  let rec transExp (venv, tenv, senv, level, exp) =
     let rec trexp = function
-      | A.NilExp _ -> { exp = (); ty = Types.NIL }
-      | A.IntExp _ -> { exp = (); ty = Types.INT }
-      | A.StringExp _ -> { exp = (); ty = Types.STRING }
+      | A.NilExp _ -> { exp = Translate.default_exp; ty = Types.NIL }
+      | A.IntExp _ -> { exp = Translate.default_exp; ty = Types.INT }
+      | A.StringExp _ -> { exp = Translate.default_exp; ty = Types.STRING }
       | A.CallExp { func = id; args; pos } -> (
           match Symbol.look (venv, id) with
-          | Some (E.FunEntry { formals; result }) ->
+          | Some (E.FunEntry { formals; result; _ }) ->
               let args_len = List.length args in
               let formals_len = List.length formals in
               if args_len = formals_len then (
                 List.iter argMatchesType (List.combine args formals);
-                { exp = (); ty = actual_ty result })
+                { exp = Translate.default_exp; ty = actual_ty result })
               else (
                 ErrorMsg.error_pos pos
                   (Printf.sprintf "%s takes %d argument(s) (%d given)"
                      (S.name id) formals_len args_len);
-                { exp = (); ty = actual_ty result })
+                { exp = Translate.default_exp; ty = actual_ty result })
           | _ ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined function %s" (S.name id));
-              { exp = (); ty = Types.INT })
+              { exp = Translate.default_exp; ty = Types.INT })
       | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper ->
           let { ty = left_ty; _ } = trexp left in
           let { ty = right_ty; _ } = trexp right in
@@ -91,7 +92,7 @@ module Semant : SEMANT = struct
               ErrorMsg.error_pos pos
                 "comparison operators are only compatible with INT, STRING, \
                  ARRAY and RECORD types");
-          { exp = (); ty = Types.INT }
+          { exp = Translate.default_exp; ty = Types.INT }
       | A.OpExp { left; oper; right; _ } when A.is_arithmetic_op oper ->
           check_type
             ( Types.INT,
@@ -103,7 +104,7 @@ module Semant : SEMANT = struct
               trexp right,
               A.exp_pos right,
               "INT arguments required for arithmetic operator" );
-          { exp = (); ty = Types.INT }
+          { exp = Translate.default_exp; ty = Types.INT }
       | A.OpExp _ -> raise Internal_error
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
@@ -151,24 +152,24 @@ module Semant : SEMANT = struct
                    else
                      ErrorMsg.error_pos pos
                        "invalid fields in record initialisation");
-                  { exp = (); ty = t' }
+                  { exp = Translate.default_exp; ty = t' }
               | _ ->
                   ErrorMsg.error_pos pos
                     (Printf.sprintf "invalid record type: %s"
                        (Types.to_string t'));
-                  { exp = (); ty = Types.INT })
+                  { exp = Translate.default_exp; ty = Types.INT })
           | None ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined type %s" (S.name typ));
-              { exp = (); ty = Types.INT })
+              { exp = Translate.default_exp; ty = Types.INT })
       | SeqExp exps ->
           (* Returns the NIL type for empty sequences *)
           List.fold_left
             (fun _ (e, _) -> trexp e)
-            { exp = (); ty = Types.NIL }
+            { exp = Translate.default_exp; ty = Types.NIL }
             exps
       | AssignExp { var; exp; pos } ->
-          let { ty = var_type; _ } = transVar (venv, tenv, senv, var) in
+          let { ty = var_type; _ } = transVar (venv, tenv, senv, level, var) in
           let { ty = exp_type; _ } = trexp exp in
           if var_type != exp_type then
             ErrorMsg.error_pos pos
@@ -177,7 +178,7 @@ module Semant : SEMANT = struct
                   variable of type %s"
                  (Types.to_string exp_type) (Types.to_string var_type));
           (* Assignment operation produces no value *)
-          { exp = (); ty = Types.NIL }
+          { exp = Translate.default_exp; ty = Types.NIL }
       | IfExp { test; then'; else'; _ } -> (
           check_type
             ( Types.INT,
@@ -194,14 +195,14 @@ module Semant : SEMANT = struct
               if not (Types.equals (then_type.ty, else_type)) then
                 ErrorMsg.error_pos (A.exp_pos then')
                   "type mismatch in then and else clause";
-              { exp = (); ty = then_type.ty }
+              { exp = Translate.default_exp; ty = then_type.ty }
           | None ->
               check_type
                 ( Types.NIL,
                   then_type,
                   A.exp_pos then',
                   "then clause has to return NIL" );
-              { exp = (); ty = Types.NIL })
+              { exp = Translate.default_exp; ty = Types.NIL })
       | WhileExp { test; body; _ } ->
           check_type
             ( Types.INT,
@@ -211,11 +212,11 @@ module Semant : SEMANT = struct
           let senv' = { in_loop = true } in
           check_type
             ( Types.NIL,
-              transExp (venv, tenv, senv', body),
+              transExp (venv, tenv, senv', level, body),
               A.exp_pos body,
               "while statement body must return NIL" );
-          { exp = (); ty = Types.NIL }
-      | ForExp { var; lo; hi; body; _ } ->
+          { exp = Translate.default_exp; ty = Types.NIL }
+      | ForExp { var; lo; hi; body; escape; _ } ->
           check_type
             ( Types.INT,
               trexp lo,
@@ -226,19 +227,28 @@ module Semant : SEMANT = struct
               trexp hi,
               A.exp_pos hi,
               "for loop end variable must be an INT" );
-          let venv' = Symbol.enter (venv, var, E.VarEntry { ty = Types.INT }) in
+          let venv' =
+            Symbol.enter
+              ( venv,
+                var,
+                E.VarEntry
+                  {
+                    ty = Types.INT;
+                    access = Translate.alloc_local level !escape;
+                  } )
+          in
           let senv' = { in_loop = true } in
           check_type
             ( Types.NIL,
-              transExp (venv', tenv, senv', body),
+              transExp (venv', tenv, senv', level, body),
               A.exp_pos body,
               "for loop body must return NIL" );
-          { exp = (); ty = Types.NIL }
+          { exp = Translate.default_exp; ty = Types.NIL }
       | BreakExp pos ->
           if not senv.in_loop then
             ErrorMsg.error_pos pos
               "encountered break statement when not in loop";
-          { exp = (); ty = Types.NIL }
+          { exp = Translate.default_exp; ty = Types.NIL }
       | ArrayExp { typ; size; init; pos } -> (
           check_type
             (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
@@ -253,16 +263,19 @@ module Semant : SEMANT = struct
                       Printf.sprintf
                         "array initial value expected to be of type %s"
                         (Types.to_string t) );
-                  { exp = (); ty = ty' }
-              | _ -> { exp = (); ty = Types.INT })
+                  { exp = Translate.default_exp; ty = ty' }
+              | _ -> { exp = Translate.default_exp; ty = Types.INT })
           | _ ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined array type %s" (S.name typ));
-              { exp = (); ty = Types.ARRAY (Types.INT, ref ()) })
+              {
+                exp = Translate.default_exp;
+                ty = Types.ARRAY (Types.INT, ref ());
+              })
       | LetExp { decs; body; _ } ->
-          let { venv; tenv } = transDecs (venv, tenv, senv, decs) in
-          transExp (venv, tenv, senv, body)
-      | VarExp var -> transVar (venv, tenv, senv, var)
+          let { venv; tenv } = transDecs (venv, tenv, senv, level, decs) in
+          transExp (venv, tenv, senv, level, body)
+      | VarExp var -> transVar (venv, tenv, senv, level, var)
     (* Used to check that function arguments match the call signature *)
     and argMatchesType (exp, ty) =
       let { ty = exp_ty; _ } = trexp exp in
@@ -274,15 +287,16 @@ module Semant : SEMANT = struct
     in
     trexp exp
 
-  and transVar (venv, tenv, senv, var) =
+  and transVar (venv, tenv, senv, level, var) =
     let rec trvar = function
       | A.SimpleVar (id, pos) -> (
           match Symbol.look (venv, id) with
-          | Some (E.VarEntry { ty }) -> { exp = (); ty = actual_ty ty }
+          | Some (E.VarEntry { ty; _ }) ->
+              { exp = Translate.default_exp; ty = actual_ty ty }
           | _ ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined variable %s" (S.name id));
-              { exp = (); ty = Types.INT })
+              { exp = Translate.default_exp; ty = Types.INT })
       | A.FieldVar (var, sym, pos) -> (
           match actual_ty (trvar var).ty with
           | Types.RECORD (fields, _) ->
@@ -294,29 +308,29 @@ module Semant : SEMANT = struct
                 | (s, t) :: _ when s = sym -> actual_ty t
                 | _ :: rest -> find_field rest
               in
-              { exp = (); ty = find_field fields }
+              { exp = Translate.default_exp; ty = find_field fields }
           | _ ->
               ErrorMsg.error_pos pos
                 "attempted to access field on a non-record type";
-              { exp = (); ty = Types.INT })
+              { exp = Translate.default_exp; ty = Types.INT })
       | A.SubscriptVar (var, exp, pos) -> (
           check_type
             ( Types.INT,
-              transExp (venv, tenv, senv, exp),
+              transExp (venv, tenv, senv, level, exp),
               pos,
               "non-INT type cannot be used as index into array" );
           match actual_ty (trvar var).ty with
-          | Types.ARRAY (ty, _) -> { exp = (); ty }
+          | Types.ARRAY (ty, _) -> { exp = Translate.default_exp; ty }
           | _ ->
               ErrorMsg.error_pos pos "attempted to index into a non-array type";
-              { exp = (); ty = Types.INT })
+              { exp = Translate.default_exp; ty = Types.INT })
     in
     trvar var
 
   (* Adds dummy header to the type environment
      with an empty body for type and function
      declarations *)
-  and extractHeader (venv, tenv, dec) =
+  and extractHeader (venv, tenv, level, dec) =
     let sym_to_type (sym, pos) =
       match Symbol.look (tenv, sym) with
       | Some t' -> t'
@@ -333,7 +347,15 @@ module Semant : SEMANT = struct
           (* If no return type is specified, then this is a procedure *)
           | _ -> Types.NIL
         in
-
+        let label = Temp.new_label () in
+        let level' =
+          Translate.new_level
+            {
+              parent = level;
+              name = Temp.new_label ();
+              formals = List.map (fun (f : A.field) -> !(f.escape)) params;
+            }
+        in
         {
           venv =
             S.enter
@@ -347,6 +369,8 @@ module Semant : SEMANT = struct
                           sym_to_type (param.typ, param.pos))
                         params;
                     result = ret_type;
+                    label;
+                    level = level';
                   } );
           tenv;
         }
@@ -358,7 +382,7 @@ module Semant : SEMANT = struct
 
   (* Actually process the bodies of type/function
      declarations and variable definitions *)
-  and processBody (venv, tenv, senv, dec) =
+  and processBody (venv, tenv, senv, level, dec) =
     match dec with
     | A.TypeDec { name; ty; _ } ->
         let t = transTy (tenv, ty) in
@@ -372,17 +396,17 @@ module Semant : SEMANT = struct
           | Some t' -> actual_ty t'
           | _ -> Types.INT
         in
-        (* Env with function parameters *)
-        let venv' =
-          let do_param env param =
-            let ty = param_to_type param in
-            Symbol.enter (env, param.name, E.VarEntry { ty })
-          in
-          List.fold_left do_param venv params
-        in
-        let body_type = transExp (venv', tenv, senv, body) in
         (match Symbol.look (venv, name) with
-        | Some (FunEntry { result; _ }) ->
+        | Some (FunEntry { result; level = level'; _ }) ->
+            (* Env with function parameters *)
+            let venv' =
+              let do_param env param access =
+                let ty = param_to_type param in
+                Symbol.enter (env, param.name, E.VarEntry { ty; access })
+              in
+              List.fold_left2 do_param venv params (Translate.formals level')
+            in
+            let body_type = transExp (venv', tenv, senv, level', body) in
             let res_type = actual_ty result in
             if not (Types.equals (res_type, body_type.ty)) then
               ErrorMsg.error_pos (A.exp_pos body)
@@ -393,11 +417,19 @@ module Semant : SEMANT = struct
                    (Types.to_string body_type.ty))
         | _ -> raise Internal_error);
         { venv; tenv }
-    | A.VarDec { name; typ = None; init; _ } ->
-        let { ty; _ } = transExp (venv, tenv, senv, init) in
-        { venv = S.enter (venv, name, E.VarEntry { ty }); tenv }
-    | A.VarDec { name; typ = Some (t, t_pos); init; _ } ->
-        let exp_ty = transExp (venv, tenv, senv, init) in
+    | A.VarDec { name; typ = None; init; escape; _ } ->
+        let { ty; _ } = transExp (venv, tenv, senv, level, init) in
+        {
+          venv =
+            S.enter
+              ( venv,
+                name,
+                E.VarEntry { ty; access = Translate.alloc_local level !escape }
+              );
+          tenv;
+        }
+    | A.VarDec { name; typ = Some (t, t_pos); init; escape; _ } ->
+        let exp_ty = transExp (venv, tenv, senv, level, init) in
         (match Symbol.look (tenv, t) with
         | Some t' ->
             if actual_ty t' != exp_ty.ty then
@@ -408,7 +440,18 @@ module Semant : SEMANT = struct
         | None ->
             ErrorMsg.error_pos t_pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t)));
-        { venv = S.enter (venv, name, E.VarEntry { ty = exp_ty.ty }); tenv }
+        {
+          venv =
+            S.enter
+              ( venv,
+                name,
+                E.VarEntry
+                  {
+                    ty = exp_ty.ty;
+                    access = Translate.alloc_local level !escape;
+                  } );
+          tenv;
+        }
 
   (* Two passes
      1. Process headers of type/function declarations and
@@ -418,14 +461,14 @@ module Semant : SEMANT = struct
         variable definitions (we do it here as these
         definitions might use recursive types and we need to
         call actual_ty on them)*)
-  and transDecs (venv, tenv, senv, decs) =
+  and transDecs (venv, tenv, senv, level, decs) =
     let { venv = venv'; tenv = tenv' } =
       List.fold_left
-        (fun { venv = v; tenv = t } dec -> extractHeader (v, t, dec))
+        (fun { venv = v; tenv = t } dec -> extractHeader (v, t, level, dec))
         { venv; tenv } decs
     in
     List.fold_left
-      (fun { venv = v; tenv = t } dec -> processBody (v, t, senv, dec))
+      (fun { venv = v; tenv = t } dec -> processBody (v, t, senv, level, dec))
       { venv = venv'; tenv = tenv' }
       decs
 
@@ -454,7 +497,8 @@ module Semant : SEMANT = struct
             Types.ARRAY (Types.INT, ref ()))
 
   let transProg exp =
-    ignore (transExp (E.base_venv, E.base_tenv, base_senv, exp))
+    ignore
+      (transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp))
 end
 
 open Base
