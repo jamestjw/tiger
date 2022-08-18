@@ -7,11 +7,11 @@ module type SYMBOL = sig
   val to_symbol : string -> symbol
   val name : symbol -> string
 
-  type 'a t
+  type 'a tbl
 
-  val empty : 'a t
-  val enter : 'a t * symbol * 'a -> 'a t
-  val look : 'a t * symbol -> 'a option
+  val empty : 'a tbl
+  val enter : 'a tbl * symbol * 'a -> 'a tbl
+  val look : 'a tbl * symbol -> 'a option
 end
 
 module Symbol : SYMBOL = struct
@@ -43,7 +43,7 @@ module Symbol : SYMBOL = struct
   (* Map that has an Int key and 'a value *)
   module IntMap = Caml.Map.Make (Int)
 
-  type 'a t = 'a IntMap.t
+  type 'a tbl = 'a IntMap.t
 
   let empty = IntMap.empty
   let enter (t, (_, s_i), v) = IntMap.add s_i v t

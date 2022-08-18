@@ -1,9 +1,14 @@
 open Semant
+open Findescape
 
-(* Runs parser on the string and performs
-   semantic analysis on the resulting AST*)
-let compile_string s =
-  ignore (List.map Semant.transProg (Parser.parse_string s))
+(* Steps:
+   1. Runs parser on the string to build AST
+   2. Run variable escape analaysis on the AST
+   3. Run emantic analysis on the AST*)
 
-let compile_file filename =
-  ignore (List.map Semant.transProg (Parser.parse_file filename))
+let process_ast ast =
+  FindEscape.find_escape ast;
+  Semant.transProg ast
+
+let compile_string s = process_ast (Parser.parse_string s)
+let compile_file filename = process_ast (Parser.parse_file filename)
