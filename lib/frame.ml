@@ -31,6 +31,7 @@ module X86Frame : FRAME = struct
   (* TODO: Make this variable *)
   let word_size = 8
   let formals_start_offset = 16
+  let num_formals_in_registers = 6
 
   let new_frame { name; formals } =
     { name; formals; locals = ref []; next_local_offset = ref (-8) }
@@ -39,10 +40,14 @@ module X86Frame : FRAME = struct
 
   (* TODO: Complete this, for now assume that all formals are escaped *)
   let formals (f : frame) =
-    let _, l =
+    let _, _, l =
       List.fold_left
-        ~f:(fun (pos, l) _formal -> (pos + word_size, InFrame pos :: l))
-        ~init:(formals_start_offset, []) f.formals
+        ~f:(fun (i, pos, l) escape ->
+          if i < num_formals_in_registers && not escape then
+            (i + 1, pos, InReg (Temp.new_temp ()) :: l)
+          else (i + 1, pos + word_size, InFrame pos :: l))
+        ~init:(0, formals_start_offset, [])
+        f.formals
     in
     List.rev l
 
