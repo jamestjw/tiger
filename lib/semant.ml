@@ -26,8 +26,8 @@ module type SEMANT = sig
 end
 
 module Semant : SEMANT = struct
-  type venv = Env.enventry Symbol.t
-  type tenv = Types.ty Symbol.t
+  type venv = Env.enventry Symbol.tbl
+  type tenv = Types.ty Symbol.tbl
   type expty = { exp : Translate.exp; ty : Types.ty }
   type decty = { venv : venv; tenv : tenv }
   type senv = { in_loop : bool }
@@ -506,7 +506,7 @@ open Errormsg
 
 let%test_unit "successfully_run_semant_on_test_files" =
   let do_file filename =
-    ignore (List.map ~f:Semant.transProg (Parser.parse_file filename))
+    ignore (Semant.transProg (Parser.parse_file filename))
   in
   let res =
     let test_dir = "../../../tests/" in
@@ -520,15 +520,15 @@ let%test_unit "successfully_run_semant_on_test_files" =
 
 let%test_unit "legal_break_statement_in_for_loop" =
   let input_string = "let in for i := 0 to 10 do break end" in
-  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  ignore (Semant.transProg (Parser.parse_string input_string));
   [%test_eq: bool] !ErrorMsg.anyErrors false
 
 let%test_unit "legal_break_statement_in_while_loop" =
   let input_string = "let in while 1 do break end" in
-  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  ignore (Semant.transProg (Parser.parse_string input_string));
   [%test_eq: bool] !ErrorMsg.anyErrors false
 
 let%expect_test "illegal_break_statement_outside_of_for_loop" =
   let input_string = "let in break end" in
-  ignore (List.map ~f:Semant.transProg (Parser.parse_string input_string));
+  ignore (Semant.transProg (Parser.parse_string input_string));
   [%expect {| :1.7: encountered break statement when not in loop |}]

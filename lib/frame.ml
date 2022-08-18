@@ -38,7 +38,6 @@ module X86Frame : FRAME = struct
 
   let name (f : frame) = f.name
 
-  (* TODO: Complete this, for now assume that all formals are escaped *)
   let formals (f : frame) =
     let _, _, l =
       List.fold_left
