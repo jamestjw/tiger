@@ -291,36 +291,42 @@ module Semant : SEMANT = struct
     let rec trvar = function
       | A.SimpleVar (id, pos) -> (
           match Symbol.look (venv, id) with
-          | Some (E.VarEntry { ty; _ }) ->
-              { exp = Translate.default_exp; ty = actual_ty ty }
+          | Some (E.VarEntry { ty; access }) ->
+              { exp = Translate.simpleVar (access, level); ty = actual_ty ty }
           | _ ->
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined variable %s" (S.name id));
               { exp = Translate.default_exp; ty = Types.INT })
       | A.FieldVar (var, sym, pos) -> (
-          match actual_ty (trvar var).ty with
+          let var_res = trvar var in
+          match actual_ty var_res.ty with
           | Types.RECORD (fields, _) ->
-              let rec find_field = function
+              let rec find_field fields idx =
+                match fields with
                 | [] ->
                     ErrorMsg.error_pos pos
                       "attempted to access field that does not exist in record";
-                    Types.INT
-                | (s, t) :: _ when s = sym -> actual_ty t
-                | _ :: rest -> find_field rest
+                    (Types.INT, 0)
+                | (s, t) :: _ when s = sym -> (actual_ty t, idx)
+                | _ :: rest -> find_field rest (idx + 1)
               in
-              { exp = Translate.default_exp; ty = find_field fields }
+              let t, field_index = find_field fields 0 in
+              { exp = Translate.fieldVar (var_res.exp, field_index); ty = t }
           | _ ->
               ErrorMsg.error_pos pos
                 "attempted to access field on a non-record type";
               { exp = Translate.default_exp; ty = Types.INT })
       | A.SubscriptVar (var, exp, pos) -> (
+          let index_res = transExp (venv, tenv, senv, level, exp) in
+          let var_res = trvar var in
           check_type
             ( Types.INT,
-              transExp (venv, tenv, senv, level, exp),
+              index_res,
               pos,
               "non-INT type cannot be used as index into array" );
-          match actual_ty (trvar var).ty with
-          | Types.ARRAY (ty, _) -> { exp = Translate.default_exp; ty }
+          match actual_ty var_res.ty with
+          | Types.ARRAY (ty, _) ->
+              { exp = Translate.subscriptVar (var_res.exp, index_res.exp); ty }
           | _ ->
               ErrorMsg.error_pos pos "attempted to index into a non-array type";
               { exp = Translate.default_exp; ty = Types.INT })

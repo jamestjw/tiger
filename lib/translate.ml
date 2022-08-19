@@ -1,5 +1,7 @@
 open Temp
+open Tree
 open Frame
+module T = Tree
 
 module type TRANSLATE = sig
   type exp
@@ -17,11 +19,28 @@ module type TRANSLATE = sig
   val formals : level -> access list
   val alloc_local : level -> bool -> access
   val default_exp : exp
+
+  (* Access of the variable and the level in which it is used *)
+  val simpleVar : access * level -> exp
+  val subscriptVar : exp * exp -> exp
+  val fieldVar : exp * int -> exp
 end
 
 module Translate : TRANSLATE = struct
-  type exp = unit
-  type level = { depth : int; frame : Frame.frame }
+  type exp =
+    | Ex of Tree.exp (* For expressions *)
+    | Nx of Tree.stm (* For statements that produce no result *)
+    (* Conditional, jumps either to the first or second label depending on
+       the statement. *)
+    | Cx of (Temp.label * Temp.label -> Tree.stm)
+
+  type level = {
+    depth : int;
+    frame : Frame.frame;
+    unique : unit ref;
+    parent : level option;
+  }
+
   type access = level * Frame.access
 
   type new_level_args = {
@@ -34,6 +53,8 @@ module Translate : TRANSLATE = struct
     {
       depth = 0;
       frame = Frame.new_frame { name = Temp.named_label "main"; formals = [] };
+      unique = ref ();
+      parent = None;
     }
 
   let new_level { name; parent; formals } =
@@ -41,6 +62,8 @@ module Translate : TRANSLATE = struct
       depth = parent.depth + 1;
       (* Add an extra parameter that escapes to represent the static link *)
       frame = Frame.new_frame { name; formals = true :: formals };
+      unique = ref ();
+      parent = Some parent;
     }
 
   let formals l =
@@ -49,6 +72,80 @@ module Translate : TRANSLATE = struct
       (* Skip the first formal as that is the static link *)
       (List.tl (Frame.formals l.frame))
 
+  let static_link l = List.hd (Frame.formals l.frame)
   let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
-  let default_exp = ()
+  let default_exp = Ex (Tree.CONST 0)
+
+  let rec seq = function
+    | [ a ] -> a
+    | a :: rest -> T.SEQ (a, seq rest)
+    | [] ->
+        Errormsg.ErrorMsg.impossible
+          "Empty sequences should not be passed to this function"
+
+  let unEx = function
+    | Ex e -> e
+    | Cx genstm ->
+        (* Allocates a register and stores a value of either 0/1
+           depending on the conditional statement *)
+        let r = Temp.new_temp () in
+        let t = Temp.new_label () in
+        let f = Temp.new_label () in
+        T.ESEQ
+          ( seq
+              [
+                T.MOVE (T.TEMP r, T.CONST 1);
+                genstm (t, f);
+                T.LABEL f;
+                T.MOVE (T.TEMP r, T.CONST 0);
+                T.LABEL t;
+              ],
+            T.TEMP r )
+    | Nx s -> T.ESEQ (s, T.CONST 0)
+
+  let unNx = function
+    | Ex e -> T.EXP e
+    | Cx _ as c -> T.EXP (unEx c)
+    | Nx s -> s
+
+  let unCx = function
+    | Cx genstm -> genstm
+    | Nx _ ->
+        Errormsg.ErrorMsg.impossible
+          "unCx(Nx _) should never need to be translated"
+    | Ex (T.CONST 0) -> fun (_, f) -> T.JUMP (T.NAME f, [ f ])
+    | Ex (T.CONST 1) -> fun (t, _) -> T.JUMP (T.NAME t, [ t ])
+    | Ex e -> fun (t, f) -> T.CJUMP (T.NE, e, T.CONST 0, t, f)
+
+  let level_equal l1 l2 = l1.unique = l2.unique
+
+  let simpleVar ((original_level, a), l) =
+    let rec do_one_level curr_level frame_addr =
+      (* If we are at the right level, then just load from this frame *)
+      if level_equal original_level curr_level then Frame.exp a frame_addr
+      else
+        match curr_level.parent with
+        | Some parent ->
+            (* Otherwise, follow the static link to the parent *)
+            do_one_level parent (Frame.exp (static_link curr_level) frame_addr)
+        | None -> Errormsg.ErrorMsg.impossible "Missing parent level"
+    in
+    Ex (do_one_level l (T.TEMP Frame.fp))
+
+  let binOpPlus e1 e2 = Tree.BINOP (Tree.PLUS, e1, e2)
+  let binOpMul e1 e2 = Tree.BINOP (Tree.MUL, e1, e2)
+
+  (* TODO: Emit code for bounds checking *)
+  let subscriptVar (var_exp, index_exp) =
+    Ex
+      (T.MEM
+         (binOpPlus (unEx var_exp)
+            (binOpMul (T.CONST Frame.word_size) (unEx index_exp))))
+
+  (* TODO: Emit code to guard against null pointer deference *)
+  let fieldVar (var_exp, field_index) =
+    Ex
+      (T.MEM
+         (binOpPlus (unEx var_exp)
+            (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))))
 end
