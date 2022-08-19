@@ -7,6 +7,7 @@ Implementing a compiler for `tiger` as described in the book **Modern Compiler I
 2. Parsing to AST
 3. Semantic analysis
 4. Production of activation records
+5. Translation to intermediate representation
 
 ## Postprocessing
 A few steps need to be taken before the code can actually be run (this is only necessary if certain files are edited). All of the below operations are idempotent. A `./run_postprocessing.sh` bash file is included to run all of the below steps.
