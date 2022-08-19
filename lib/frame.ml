@@ -1,5 +1,6 @@
 open Temp
 open Base
+open Tree
 
 module type FRAME = sig
   type frame
@@ -14,6 +15,12 @@ module type FRAME = sig
      as seen from inside the callee *)
   val formals : frame -> access list
   val alloc_local : frame -> bool -> access
+
+  (* The expression that is passed in is the address of the stack frame
+     that the access lives in*)
+  val exp : access -> Tree.exp -> Tree.exp
+  val word_size : int
+  val fp : Temp.temp
 end
 
 module X86Frame : FRAME = struct
@@ -56,6 +63,13 @@ module X86Frame : FRAME = struct
       f.next_local_offset := !(f.next_local_offset) - word_size;
       res)
     else InReg (Temp.new_temp ())
+
+  let fp = Temp.new_temp ()
+
+  let exp a e =
+    match a with
+    | InFrame k -> Tree.MEM (Tree.BINOP (Tree.PLUS, e, Tree.CONST k))
+    | InReg r -> Tree.TEMP r
 
   let%test_unit "test_all_escape_formals" =
     let frame =
