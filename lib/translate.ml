@@ -1,6 +1,9 @@
+open Absyn
 open Temp
 open Tree
 open Frame
+open Errormsg
+module A = Absyn
 module T = Tree
 
 module type TRANSLATE = sig
@@ -24,6 +27,8 @@ module type TRANSLATE = sig
   val simpleVar : access * level -> exp
   val subscriptVar : exp * exp -> exp
   val fieldVar : exp * int -> exp
+  val arithmeticOperation : exp * A.oper * exp -> exp
+  val comparisonOperation : exp * A.oper * exp -> exp
 end
 
 module Translate : TRANSLATE = struct
@@ -148,4 +153,28 @@ module Translate : TRANSLATE = struct
       (T.MEM
          (binOpPlus (unEx var_exp)
             (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))))
+
+  let arithmeticOperation (left, op, right) =
+    let op' =
+      match op with
+      | A.PlusOp -> T.PLUS
+      | A.MinusOp -> T.MINUS
+      | A.TimesOp -> T.MUL
+      | A.DivideOp -> T.DIV
+      | _ -> ErrorMsg.impossible "Invalid arithmetic operator"
+    in
+    Ex (Tree.BINOP (op', unEx left, unEx right))
+
+  let comparisonOperation (left, op, right) =
+    let op' =
+      match op with
+      | A.EqOp -> T.EQ
+      | A.NeqOp -> T.NE
+      | A.LtOp -> T.LT
+      | A.LeOp -> T.LE
+      | A.GtOp -> T.GT
+      | A.GeOp -> T.GE
+      | _ -> ErrorMsg.impossible "Invalid comparison operator"
+    in
+    Cx (fun (t, f) -> T.CJUMP (op', unEx left, unEx right, t, f))
 end
