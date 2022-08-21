@@ -77,8 +77,8 @@ module Semant : SEMANT = struct
                 (Printf.sprintf "undefined function %s" (S.name id));
               { exp = Translate.default_exp; ty = Types.INT })
       | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper ->
-          let { ty = left_ty; _ } = trexp left in
-          let { ty = right_ty; _ } = trexp right in
+          let { ty = left_ty; exp = left_exp } = trexp left in
+          let { ty = right_ty; exp = right_exp } = trexp right in
           (match left_ty with
           | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
           | Types.ARRAY _ ->
@@ -92,19 +92,29 @@ module Semant : SEMANT = struct
               ErrorMsg.error_pos pos
                 "comparison operators are only compatible with INT, STRING, \
                  ARRAY and RECORD types");
-          { exp = Translate.default_exp; ty = Types.INT }
+          {
+            exp = Translate.comparisonOperation (left_exp, oper, right_exp);
+            ty = Types.INT;
+          }
       | A.OpExp { left; oper; right; _ } when A.is_arithmetic_op oper ->
+          let left_expty = trexp left in
+          let right_expty = trexp right in
           check_type
             ( Types.INT,
-              trexp left,
+              left_expty,
               A.exp_pos left,
               "INT arguments required for arithmetic operator" );
           check_type
             ( Types.INT,
-              trexp right,
+              right_expty,
               A.exp_pos right,
               "INT arguments required for arithmetic operator" );
-          { exp = Translate.default_exp; ty = Types.INT }
+          {
+            exp =
+              Translate.arithmeticOperation
+                (left_expty.exp, oper, right_expty.exp);
+            ty = Types.INT;
+          }
       | A.OpExp _ -> raise Internal_error
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
