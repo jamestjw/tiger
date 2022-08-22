@@ -30,7 +30,10 @@ module Semant : SEMANT = struct
   type tenv = Types.ty Symbol.tbl
   type expty = { exp : Translate.exp; ty : Types.ty }
   type decty = { venv : venv; tenv : tenv }
-  type senv = { in_loop : bool }
+
+  type senv = {
+    break : Temp.label option (* Label of the closest enclosing loop *);
+  }
 
   exception Internal_error
 
@@ -44,7 +47,7 @@ module Semant : SEMANT = struct
 
   module StringSet = Set.Make (String)
 
-  let base_senv = { in_loop = false }
+  let base_senv = { break = None }
 
   let symbol_to_type s tenv pos =
     match Symbol.look (tenv, s) with
@@ -191,8 +194,10 @@ module Semant : SEMANT = struct
             { exp = Translate.default_exp; ty = Types.NIL }
             exps
       | AssignExp { var; exp; pos } ->
-          let { ty = var_type; _ } = transVar (venv, tenv, senv, level, var) in
-          let { ty = exp_type; _ } = trexp exp in
+          let { ty = var_type; exp = var_exp } =
+            transVar (venv, tenv, senv, level, var)
+          in
+          let { ty = exp_type; exp = exp_exp } = trexp exp in
           if not (Types.equals (var_type, exp_type)) then
             ErrorMsg.error_pos pos
               (Printf.sprintf
@@ -200,7 +205,7 @@ module Semant : SEMANT = struct
                   variable of type %s"
                  (Types.to_string exp_type) (Types.to_string var_type));
           (* Assignment operation produces no value *)
-          { exp = Translate.default_exp; ty = Types.NIL }
+          { exp = Translate.assignExp (var_exp, exp_exp); ty = Types.NIL }
       | IfExp { test; then'; else'; _ } -> (
           let test_expty = trexp test in
           check_type
@@ -235,51 +240,73 @@ module Semant : SEMANT = struct
                 ty = Types.NIL;
               })
       | WhileExp { test; body; _ } ->
+          let test_expty = trexp test in
           check_type
             ( Types.INT,
-              trexp test,
+              test_expty,
               A.exp_pos test,
               "while statement condition must be an INT" );
-          let senv' = { in_loop = true } in
+          let end_label = Temp.new_label () in
+          let senv' = { break = Some end_label } in
+          let body_expty = transExp (venv, tenv, senv', level, body) in
           check_type
             ( Types.NIL,
-              transExp (venv, tenv, senv', level, body),
+              body_expty,
               A.exp_pos body,
               "while statement body must return NIL" );
-          { exp = Translate.default_exp; ty = Types.NIL }
+          {
+            exp = Translate.whileExp (test_expty.exp, body_expty.exp, end_label);
+            ty = Types.NIL;
+          }
       | ForExp { var; lo; hi; body; escape; _ } ->
+          let lo_expty = trexp lo in
+          let hi_expty = trexp hi in
           check_type
             ( Types.INT,
-              trexp lo,
+              lo_expty,
               A.exp_pos lo,
               "for loop start variable must be an INT" );
           check_type
             ( Types.INT,
-              trexp hi,
+              hi_expty,
               A.exp_pos hi,
               "for loop end variable must be an INT" );
+          let loop_counter_access = Translate.alloc_local level !escape in
           let venv' =
             Symbol.enter
               ( venv,
                 var,
-                E.VarEntry
-                  {
-                    ty = Types.INT;
-                    access = Translate.alloc_local level !escape;
-                  } )
+                E.VarEntry { ty = Types.INT; access = loop_counter_access } )
           in
-          let senv' = { in_loop = true } in
+          let end_label = Temp.new_label () in
+          let senv' = { break = Some end_label } in
+          let body_expty = transExp (venv', tenv, senv', level, body) in
           check_type
             ( Types.NIL,
-              transExp (venv', tenv, senv', level, body),
+              body_expty,
               A.exp_pos body,
               "for loop body must return NIL" );
-          { exp = Translate.default_exp; ty = Types.NIL }
-      | BreakExp pos ->
-          if not senv.in_loop then
-            ErrorMsg.error_pos pos
-              "encountered break statement when not in loop";
-          { exp = Translate.default_exp; ty = Types.NIL }
+          let loop_counter_exp =
+            Translate.simpleVar (loop_counter_access, level)
+          in
+          {
+            exp =
+              Translate.forExp
+                ( loop_counter_exp,
+                  lo_expty.exp,
+                  hi_expty.exp,
+                  body_expty.exp,
+                  end_label );
+            ty = Types.NIL;
+          }
+      | BreakExp pos -> (
+          match senv.break with
+          | Some end_label ->
+              { exp = Translate.breakExp end_label; ty = Types.NIL }
+          | _ ->
+              ErrorMsg.error_pos pos
+                "encountered break statement when not in loop";
+              { exp = Translate.default_exp; ty = Types.NIL })
       | ArrayExp { typ; size; init; pos } -> (
           let size_expty = trexp size in
           check_type

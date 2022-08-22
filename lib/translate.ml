@@ -27,6 +27,7 @@ module type TRANSLATE = sig
   val simpleVar : access * level -> exp
   val subscriptVar : exp * exp -> exp
   val fieldVar : exp * int -> exp
+  val assignExp : exp * exp -> exp
   val arithmeticOperation : exp * A.oper * exp -> exp
   val comparisonOperation : exp * A.oper * exp -> exp
   val ifThenElse : exp * exp * exp -> exp
@@ -35,6 +36,9 @@ module type TRANSLATE = sig
   val recordExp : exp list -> exp
   val arrayExp : exp * exp -> exp
   val callExp : Temp.label * exp list -> exp
+  val whileExp : exp * exp * Temp.label -> exp
+  val forExp : exp * exp * exp * exp * Temp.label -> exp
+  val breakExp : Temp.label -> exp
   val getResult : unit -> Frame.frag list
 end
 
@@ -161,6 +165,8 @@ module Translate : TRANSLATE = struct
          (binOpPlus (unEx var_exp)
             (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))))
 
+  let assignExp (var, exp) = Nx (T.MOVE (unEx var, unEx exp))
+
   let arithmeticOperation (left, op, right) =
     let op' =
       match op with
@@ -271,5 +277,47 @@ module Translate : TRANSLATE = struct
     Ex (Frame.externalCall ("initArray", [ unEx size; unEx init ]))
 
   let callExp (name, args) = Ex (T.CALL (T.NAME name, List.map unEx args))
+
+  let whileExp (test, body, end_label) =
+    let start_label = Temp.new_label () in
+    (* TODO: Do without the body label *)
+    let body_label = Temp.new_label () in
+    Nx
+      (seq
+         [
+           T.LABEL start_label;
+           (unCx test) (body_label, end_label);
+           T.LABEL body_label;
+           unNx body;
+           T.JUMP (T.NAME start_label, [ start_label ]);
+           T.LABEL end_label;
+         ])
+
+  let forExp (counter, lo, hi, body, end_label) =
+    let r = Temp.new_temp () in
+    let start_label = Temp.new_label () in
+    let increment_label = Temp.new_label () in
+    Nx
+      (seq
+         [
+           unNx (assignExp (counter, lo));
+           T.MOVE (T.TEMP r, unEx hi);
+           (* Check once if lo <= hi *)
+           T.CJUMP (T.LE, unEx counter, T.TEMP r, start_label, end_label);
+           T.LABEL start_label;
+           unNx body;
+           T.CJUMP (T.LT, unEx counter, T.TEMP r, increment_label, end_label);
+           (* Increment loop counter, we are checking for counter < limit instead
+              of counter <= limit as an overflow might occur if limit = maxint, hence
+              why we do the check before the increment *)
+           T.LABEL increment_label;
+           unNx
+             (assignExp
+                (counter, Ex (Tree.BINOP (Tree.PLUS, unEx counter, T.CONST 1))));
+           T.JUMP (T.NAME start_label, [ start_label ]);
+           T.LABEL end_label;
+         ])
+
+  let breakExp label = Nx (T.JUMP (T.NAME label, [ label ]))
   let getResult () = !frags
 end
