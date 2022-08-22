@@ -27,6 +27,7 @@ module type FRAME = sig
   val exp : access -> Tree.exp -> Tree.exp
   val word_size : int
   val fp : Temp.temp
+  val externalCall : string * Tree.exp list -> Tree.exp
 end
 
 module X86Frame : FRAME = struct
@@ -80,6 +81,8 @@ module X86Frame : FRAME = struct
     match a with
     | InFrame k -> Tree.MEM (Tree.BINOP (Tree.PLUS, e, Tree.CONST k))
     | InReg r -> Tree.TEMP r
+
+  let externalCall (s, args) = Tree.CALL (Tree.NAME (Temp.named_label s), args)
 
   let%test_unit "test_all_escape_formals" =
     let frame =

@@ -32,6 +32,7 @@ module type TRANSLATE = sig
   val ifThenElse : exp * exp * exp -> exp
   val ifThen : exp * exp -> exp
   val stringExp : string -> exp
+  val recordExp : exp list -> exp
   val getResult : unit -> Frame.frag list
 end
 
@@ -238,6 +239,31 @@ module Translate : TRANSLATE = struct
     let lab = Temp.new_label () in
     frags := Frame.STRING (lab, s) :: !frags;
     Ex (T.NAME lab)
+
+  let recordExp fields =
+    let num_fields = List.length fields in
+    let record_size = num_fields * Frame.word_size in
+    let r = Temp.new_temp () in
+    let _, processed_fields =
+      List.fold_left
+        (fun (idx, fs) field ->
+          ( idx + 1,
+            T.MOVE
+              ( T.MEM (binOpPlus (T.TEMP r) (T.CONST (idx * Frame.word_size))),
+                unEx field )
+            :: fs ))
+        (0, []) fields
+    in
+    Ex
+      (T.ESEQ
+         ( seq
+             ([
+                T.MOVE
+                  ( T.TEMP r,
+                    Frame.externalCall ("malloc", [ T.CONST record_size ]) );
+              ]
+             @ processed_fields),
+           T.TEMP r ))
 
   let getResult () = !frags
 end
