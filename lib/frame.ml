@@ -7,6 +7,12 @@ module type FRAME = sig
   type access [@@deriving compare, sexp]
   type new_frame_args = { name : Temp.label; formals : bool list }
 
+  (* Fragments that are processed at the beginning of code generation,
+     usually for statics and function definitions *)
+  type frag =
+    | PROC of { body : Tree.stm; frame : frame }
+    | STRING of Temp.label * string
+
   val new_frame : new_frame_args -> frame
   val name : frame -> Temp.label
 
@@ -34,6 +40,10 @@ module X86Frame : FRAME = struct
   }
 
   type new_frame_args = { name : Temp.label; formals : bool list }
+
+  type frag =
+    | PROC of { body : Tree.stm; frame : frame }
+    | STRING of Temp.label * string
 
   (* TODO: Make this variable *)
   let word_size = 8

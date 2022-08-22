@@ -58,7 +58,7 @@ module Semant : SEMANT = struct
     let rec trexp = function
       | A.NilExp _ -> { exp = Translate.default_exp; ty = Types.NIL }
       | A.IntExp _ -> { exp = Translate.default_exp; ty = Types.INT }
-      | A.StringExp _ -> { exp = Translate.default_exp; ty = Types.STRING }
+      | A.StringExp (s, _) -> { exp = Translate.stringExp s; ty = Types.STRING }
       | A.CallExp { func = id; args; pos } -> (
           match Symbol.look (venv, id) with
           | Some (E.FunEntry { formals; result; _ }) ->
