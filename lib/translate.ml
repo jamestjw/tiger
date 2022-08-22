@@ -31,6 +31,8 @@ module type TRANSLATE = sig
   val comparisonOperation : exp * A.oper * exp -> exp
   val ifThenElse : exp * exp * exp -> exp
   val ifThen : exp * exp -> exp
+  val stringExp : string -> exp
+  val getResult : unit -> Frame.frag list
 end
 
 module Translate : TRANSLATE = struct
@@ -168,6 +170,7 @@ module Translate : TRANSLATE = struct
     Ex (Tree.BINOP (op', unEx left, unEx right))
 
   let comparisonOperation (left, op, right) =
+    (* TODO: Implement string comparison *)
     let op' =
       match op with
       | A.EqOp -> T.EQ
@@ -226,4 +229,15 @@ module Translate : TRANSLATE = struct
            unNx t;
            T.LABEL end_label;
          ])
+
+  let frags : Frame.frag list ref = ref []
+
+  let stringExp s =
+    (* Create a new label and attach a string with this
+       label to the fragment list *)
+    let lab = Temp.new_label () in
+    frags := Frame.STRING (lab, s) :: !frags;
+    Ex (T.NAME lab)
+
+  let getResult () = !frags
 end
