@@ -61,12 +61,17 @@ module Semant : SEMANT = struct
       | A.StringExp (s, _) -> { exp = Translate.stringExp s; ty = Types.STRING }
       | A.CallExp { func = id; args; pos } -> (
           match Symbol.look (venv, id) with
-          | Some (E.FunEntry { formals; result; _ }) ->
+          | Some (E.FunEntry { formals; result; label; _ }) ->
               let args_len = List.length args in
               let formals_len = List.length formals in
-              if args_len = formals_len then (
-                List.iter argMatchesType (List.combine args formals);
-                { exp = Translate.default_exp; ty = actual_ty result })
+              if args_len = formals_len then
+                let processed_args =
+                  List.map processArg (List.combine args formals)
+                in
+                {
+                  exp = Translate.callExp (label, processed_args);
+                  ty = actual_ty result;
+                }
               else (
                 ErrorMsg.error_pos pos
                   (Printf.sprintf "%s takes %d argument(s) (%d given)"
@@ -276,20 +281,25 @@ module Semant : SEMANT = struct
               "encountered break statement when not in loop";
           { exp = Translate.default_exp; ty = Types.NIL }
       | ArrayExp { typ; size; init; pos } -> (
+          let size_expty = trexp size in
           check_type
-            (Types.INT, trexp size, A.exp_pos size, "array size must be INT");
+            (Types.INT, size_expty, A.exp_pos size, "array size must be INT");
           match Symbol.look (tenv, typ) with
           | Some ty -> (
               match actual_ty ty with
               | Types.ARRAY (t, _) as ty' ->
+                  let init_expty = trexp init in
                   check_type
                     ( t,
-                      trexp init,
+                      init_expty,
                       A.exp_pos init,
                       Printf.sprintf
                         "array initial value expected to be of type %s"
                         (Types.to_string t) );
-                  { exp = Translate.default_exp; ty = ty' }
+                  {
+                    exp = Translate.arrayExp (size_expty.exp, init_expty.exp);
+                    ty = ty';
+                  }
               | _ -> { exp = Translate.default_exp; ty = Types.INT })
           | _ ->
               ErrorMsg.error_pos pos
@@ -303,13 +313,14 @@ module Semant : SEMANT = struct
           transExp (venv, tenv, senv, level, body)
       | VarExp var -> transVar (venv, tenv, senv, level, var)
     (* Used to check that function arguments match the call signature *)
-    and argMatchesType (exp, ty) =
-      let { ty = exp_ty; _ } = trexp exp in
+    and processArg (exp, ty) =
+      let { ty = exp_ty; exp = exp' } = trexp exp in
       let ty' = actual_ty ty in
-      if exp_ty != ty' then
+      if not (Types.equals (exp_ty, ty')) then
         ErrorMsg.error_pos (Absyn.exp_pos exp)
           (Printf.sprintf "Expected argument of type %s got %s instead"
-             (Types.to_string ty') (Types.to_string exp_ty))
+             (Types.to_string ty') (Types.to_string exp_ty));
+      exp'
     in
     trexp exp
 
