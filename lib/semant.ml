@@ -122,47 +122,54 @@ module Semant : SEMANT = struct
               let t' = actual_ty t in
               match t' with
               | Types.RECORD (fields, _) ->
-                  (let input_symbols =
-                     List.fold_left
-                       (fun acc (s, _, _) -> StringSet.add (Symbol.name s) acc)
-                       StringSet.empty input_fields
-                   in
-                   let required_symbols =
-                     List.fold_left
-                       (fun acc (s, _) -> StringSet.add (Symbol.name s) acc)
-                       StringSet.empty fields
-                   in
-                   if StringSet.equal input_symbols required_symbols then
-                     let sorted_fields =
-                       List.map
-                         (fun (s, t) -> (s, actual_ty t))
-                         (List.sort
-                            (fun (s1, _) (s2, _) -> Symbol.compare_symbol s1 s2)
-                            fields)
-                     in
-                     let sorted_input_fields =
-                       List.map
-                         (fun (s, e, _) -> (s, (trexp e).ty))
-                         (List.sort
-                            (fun (s1, _, _) (s2, _, _) ->
-                              Symbol.compare_symbol s1 s2)
-                            input_fields)
-                     in
-                     List.iter2
-                       (fun (s1, t1) (_, t2) ->
-                         if not (Types.equals (t1, t2)) then
-                           ErrorMsg.error_pos pos
-                             (Printf.sprintf
-                                "type mismatch for field '%s', expected %s \
-                                 (got %s)"
-                                (Symbol.name s1) (Types.to_string t1)
-                                (Types.to_string t2))
-                         else ())
-                       sorted_fields sorted_input_fields
-                   else
-                     ErrorMsg.error_pos pos
-                       "invalid fields in record initialisation");
-                  { exp = Translate.default_exp; ty = t' }
+                  let input_symbols =
+                    List.fold_left
+                      (fun acc (s, _, _) -> StringSet.add (Symbol.name s) acc)
+                      StringSet.empty input_fields
+                  in
+                  let required_symbols =
+                    List.fold_left
+                      (fun acc (s, _) -> StringSet.add (Symbol.name s) acc)
+                      StringSet.empty fields
+                  in
+                  if StringSet.equal input_symbols required_symbols then (
+                    let sorted_fields =
+                      List.map
+                        (fun (s, t) -> (s, actual_ty t))
+                        (List.sort
+                           (fun (s1, _) (s2, _) -> Symbol.compare_symbol s1 s2)
+                           fields)
+                    in
+                    let sorted_input_fields =
+                      List.map
+                        (fun (_, e, _) -> trexp e)
+                        (List.sort
+                           (fun (s1, _, _) (s2, _, _) ->
+                             Symbol.compare_symbol s1 s2)
+                           input_fields)
+                    in
+                    List.iter2
+                      (fun (s1, t1) t2 ->
+                        if not (Types.equals (t1, t2)) then
+                          ErrorMsg.error_pos pos
+                            (Printf.sprintf
+                               "type mismatch for field '%s', expected %s (got \
+                                %s)"
+                               (Symbol.name s1) (Types.to_string t1)
+                               (Types.to_string t2))
+                        else ())
+                      sorted_fields
+                      (List.map (fun x -> x.ty) sorted_input_fields);
+                    {
+                      exp =
+                        Translate.recordExp
+                          (List.map (fun x -> x.exp) sorted_input_fields);
+                      ty = t';
+                    })
+                  else (
+                    ErrorMsg.error_pos pos
+                      "invalid fields in record initialisation";
+                    { exp = Translate.default_exp; ty = t' })
               | _ ->
                   ErrorMsg.error_pos pos
                     (Printf.sprintf "invalid record type: %s"
