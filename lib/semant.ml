@@ -181,7 +181,7 @@ module Semant : SEMANT = struct
       | AssignExp { var; exp; pos } ->
           let { ty = var_type; _ } = transVar (venv, tenv, senv, level, var) in
           let { ty = exp_type; _ } = trexp exp in
-          if var_type != exp_type then
+          if not (Types.equals (var_type, exp_type)) then
             ErrorMsg.error_pos pos
               (Printf.sprintf
                  "type mismatch: tried to assign expression of type %s to \
@@ -190,29 +190,38 @@ module Semant : SEMANT = struct
           (* Assignment operation produces no value *)
           { exp = Translate.default_exp; ty = Types.NIL }
       | IfExp { test; then'; else'; _ } -> (
+          let test_expty = trexp test in
           check_type
             ( Types.INT,
-              trexp test,
+              test_expty,
               A.exp_pos test,
               "if statement condition must be an INT" );
-          let then_type = trexp then' in
+          let then_expty = trexp then' in
           (* When the else clause is absent, the then clause
              has to return NIL. Otherwise, both clauses have
              to return the same type *)
           match else' with
           | Some e ->
-              let else_type = (trexp e).ty in
-              if not (Types.equals (then_type.ty, else_type)) then
+              let else_expty = trexp e in
+              if not (Types.equals (then_expty.ty, else_expty.ty)) then
                 ErrorMsg.error_pos (A.exp_pos then')
                   "type mismatch in then and else clause";
-              { exp = Translate.default_exp; ty = then_type.ty }
+              {
+                exp =
+                  Translate.ifThenElse
+                    (test_expty.exp, then_expty.exp, else_expty.exp);
+                ty = then_expty.ty;
+              }
           | None ->
               check_type
                 ( Types.NIL,
-                  then_type,
+                  then_expty,
                   A.exp_pos then',
                   "then clause has to return NIL" );
-              { exp = Translate.default_exp; ty = Types.NIL })
+              {
+                exp = Translate.ifThen (test_expty.exp, then_expty.exp);
+                ty = Types.NIL;
+              })
       | WhileExp { test; body; _ } ->
           check_type
             ( Types.INT,

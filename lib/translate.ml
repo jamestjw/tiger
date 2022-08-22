@@ -29,6 +29,8 @@ module type TRANSLATE = sig
   val fieldVar : exp * int -> exp
   val arithmeticOperation : exp * A.oper * exp -> exp
   val comparisonOperation : exp * A.oper * exp -> exp
+  val ifThenElse : exp * exp * exp -> exp
+  val ifThen : exp * exp -> exp
 end
 
 module Translate : TRANSLATE = struct
@@ -177,4 +179,51 @@ module Translate : TRANSLATE = struct
       | _ -> ErrorMsg.impossible "Invalid comparison operator"
     in
     Cx (fun (t, f) -> T.CJUMP (op', unEx left, unEx right, t, f))
+
+  let ifThenElse (test, t, f) =
+    let t_label = Temp.new_label () in
+    let f_label = Temp.new_label () in
+    let end_label = Temp.new_label () in
+    match t with
+    (* If we know that the for statement doesn't have to produce
+       a value, we can skip some trouble and produce an Nx directly *)
+    | Nx t' ->
+        Nx
+          (seq
+             [
+               (unCx test) (t_label, f_label);
+               T.LABEL t_label;
+               t';
+               T.JUMP (T.NAME end_label, [ end_label ]);
+               T.LABEL f_label;
+               unNx f;
+               T.LABEL end_label;
+             ])
+    | _ ->
+        let r = Temp.new_temp () in
+        Ex
+          (T.ESEQ
+             ( seq
+                 [
+                   (unCx test) (t_label, f_label);
+                   T.LABEL t_label;
+                   T.MOVE (T.TEMP r, unEx t);
+                   T.JUMP (T.NAME end_label, [ end_label ]);
+                   T.LABEL f_label;
+                   T.MOVE (T.TEMP r, unEx f);
+                   T.LABEL end_label;
+                 ],
+               T.TEMP r ))
+
+  let ifThen (test, t) =
+    let t_label = Temp.new_label () in
+    let end_label = Temp.new_label () in
+    Nx
+      (seq
+         [
+           (unCx test) (t_label, end_label);
+           T.LABEL t_label;
+           unNx t;
+           T.LABEL end_label;
+         ])
 end
