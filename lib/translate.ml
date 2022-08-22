@@ -33,6 +33,8 @@ module type TRANSLATE = sig
   val ifThen : exp * exp -> exp
   val stringExp : string -> exp
   val recordExp : exp list -> exp
+  val arrayExp : exp * exp -> exp
+  val callExp : Temp.label * exp list -> exp
   val getResult : unit -> Frame.frag list
 end
 
@@ -265,5 +267,9 @@ module Translate : TRANSLATE = struct
              @ processed_fields),
            T.TEMP r ))
 
+  let arrayExp (size, init) =
+    Ex (Frame.externalCall ("initArray", [ unEx size; unEx init ]))
+
+  let callExp (name, args) = Ex (T.CALL (T.NAME name, List.map unEx args))
   let getResult () = !frags
 end
