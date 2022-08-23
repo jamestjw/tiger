@@ -39,6 +39,7 @@ module type TRANSLATE = sig
   val whileExp : exp * exp * Temp.label -> exp
   val forExp : exp * exp * exp * exp * Temp.label -> exp
   val breakExp : Temp.label -> exp
+  val seqExp : exp list -> exp
   val getResult : unit -> Frame.frag list
 end
 
@@ -335,5 +336,16 @@ module Translate : TRANSLATE = struct
          ])
 
   let breakExp label = Nx (T.JUMP (T.NAME label, [ label ]))
+
+  let seqExp l =
+    match l with
+    | [ e ] -> e
+    | e :: [ r ] -> Ex (T.ESEQ (unNx e, unEx r))
+    | _ ->
+        let rev = List.rev l in
+        let last = List.hd rev in
+        let rest = List.rev (List.tl rev) in
+        Ex (T.ESEQ (seq (List.map unNx rest), unEx last))
+
   let getResult () = !frags
 end
