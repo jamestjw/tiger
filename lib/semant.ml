@@ -29,7 +29,7 @@ module Semant : SEMANT = struct
   type venv = Env.enventry Symbol.tbl
   type tenv = Types.ty Symbol.tbl
   type expty = { exp : Translate.exp; ty : Types.ty }
-  type decty = { venv : venv; tenv : tenv }
+  type decty = { venv : venv; tenv : tenv; inits : Translate.exp list }
 
   type senv = {
     break : Temp.label option (* Label of the closest enclosing loop *);
@@ -190,10 +190,14 @@ module Semant : SEMANT = struct
               { exp = Translate.default_exp; ty = Types.INT })
       | SeqExp exps ->
           (* Returns the NIL type for empty sequences *)
-          List.fold_left
-            (fun _ (e, _) -> trexp e)
-            { exp = Translate.default_exp; ty = Types.NIL }
-            exps
+          let exps', ty =
+            List.fold_left
+              (fun (l, _) (e, _) ->
+                let { exp; ty } = trexp e in
+                (l @ [ exp ], ty))
+              ([], Types.NIL) exps
+          in
+          { exp = Translate.seqExp exps'; ty }
       | AssignExp { var; exp; pos } ->
           let { ty = var_type; exp = var_exp } =
             transVar (venv, tenv, senv, level, var)
@@ -337,8 +341,11 @@ module Semant : SEMANT = struct
                 ty = Types.ARRAY (Types.INT, ref ());
               })
       | LetExp { decs; body; _ } ->
-          let { venv; tenv } = transDecs (venv, tenv, senv, level, decs) in
-          transExp (venv, tenv, senv, level, body)
+          let { venv; tenv; inits } =
+            transDecs (venv, tenv, senv, level, decs)
+          in
+          let res = transExp (venv, tenv, senv, level, body) in
+          { res with exp = Translate.seqExp (inits @ [ res.exp ]) }
       | VarExp var -> transVar (venv, tenv, senv, level, var)
     (* Used to check that function arguments match the call signature *)
     and processArg (exp, ty) =
@@ -444,12 +451,17 @@ module Semant : SEMANT = struct
                     level = level';
                   } );
           tenv;
+          inits = [];
         }
     | A.TypeDec { name; _ } ->
         (* Add in placeholder type *)
-        { venv; tenv = S.enter (tenv, name, Types.NAME (name, ref None)) }
+        {
+          venv;
+          tenv = S.enter (tenv, name, Types.NAME (name, ref None));
+          inits = [];
+        }
     (* Do nothing for other types *)
-    | _ -> { venv; tenv }
+    | _ -> { venv; tenv; inits = [] }
 
   (* Actually process the bodies of type/function
      declarations and variable definitions *)
@@ -460,7 +472,7 @@ module Semant : SEMANT = struct
         (match Symbol.look (tenv, name) with
         | Some (Types.NAME (_, t')) -> t' := Some t
         | _ -> raise Internal_error);
-        { venv; tenv }
+        { venv; tenv; inits = [] }
     | A.FunctionDec { name; params; body; _ } ->
         let param_to_type (param : A.field) =
           match Symbol.look (tenv, param.typ) with
@@ -487,41 +499,48 @@ module Semant : SEMANT = struct
                    (Types.to_string result)
                    (Types.to_string body_type.ty))
         | _ -> raise Internal_error);
-        { venv; tenv }
+        { venv; tenv; inits = [] }
     | A.VarDec { name; typ = None; init; escape; _ } ->
-        let { ty; _ } = transExp (venv, tenv, senv, level, init) in
+        let init_expty = transExp (venv, tenv, senv, level, init) in
+        let var_access = Translate.alloc_local level !escape in
         {
           venv =
             S.enter
               ( venv,
                 name,
-                E.VarEntry { ty; access = Translate.alloc_local level !escape }
-              );
+                E.VarEntry { ty = init_expty.ty; access = var_access } );
           tenv;
+          inits =
+            [
+              Translate.assignExp
+                (Translate.simpleVar (var_access, level), init_expty.exp);
+            ];
         }
     | A.VarDec { name; typ = Some (t, t_pos); init; escape; _ } ->
-        let exp_ty = transExp (venv, tenv, senv, level, init) in
+        let init_expty = transExp (venv, tenv, senv, level, init) in
         (match Symbol.look (tenv, t) with
         | Some t' ->
-            if actual_ty t' != exp_ty.ty then
+            if actual_ty t' != init_expty.ty then
               ErrorMsg.error_pos t_pos
                 (Printf.sprintf "type mismatch, expected %s but got %s instead"
                    (Symbol.name t)
-                   (Types.to_string exp_ty.ty))
+                   (Types.to_string init_expty.ty))
         | None ->
             ErrorMsg.error_pos t_pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t)));
+        let var_access = Translate.alloc_local level !escape in
         {
           venv =
             S.enter
               ( venv,
                 name,
-                E.VarEntry
-                  {
-                    ty = exp_ty.ty;
-                    access = Translate.alloc_local level !escape;
-                  } );
+                E.VarEntry { ty = init_expty.ty; access = var_access } );
           tenv;
+          inits =
+            [
+              Translate.assignExp
+                (Translate.simpleVar (var_access, level), init_expty.exp);
+            ];
         }
 
   (* Two passes
@@ -533,15 +552,20 @@ module Semant : SEMANT = struct
         definitions might use recursive types and we need to
         call actual_ty on them)*)
   and transDecs (venv, tenv, senv, level, decs) =
-    let { venv = venv'; tenv = tenv' } =
+    let { venv = venv'; tenv = tenv'; inits = inits' } =
       List.fold_left
-        (fun { venv = v; tenv = t } dec -> extractHeader (v, t, level, dec))
-        { venv; tenv } decs
+        (fun { venv = v; tenv = t; _ } dec -> extractHeader (v, t, level, dec))
+        { venv; tenv; inits = [] } decs
     in
-    List.fold_left
-      (fun { venv = v; tenv = t } dec -> processBody (v, t, senv, level, dec))
-      { venv = venv'; tenv = tenv' }
-      decs
+    let res =
+      List.fold_left
+        (fun { venv = v; tenv = t; inits } dec ->
+          let res = processBody (v, t, senv, level, dec) in
+          { res with inits = res.inits @ inits })
+        { venv = venv'; tenv = tenv'; inits = inits' }
+        decs
+    in
+    res
 
   (* Translates Absyn.ty to Types.ty *)
   and transTy (tenv, ty) =
