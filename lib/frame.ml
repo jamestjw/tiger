@@ -27,7 +27,13 @@ module type FRAME = sig
   val exp : access -> Tree.exp -> Tree.exp
   val word_size : int
   val fp : Temp.temp
+  val rv : Temp.temp
   val externalCall : string * Tree.exp list -> Tree.exp
+
+  (* Handles the view shift by
+     1. Moving incoming formals
+     2. Saving and restoring callee-save registers *)
+  val procEntryExit1 : frame * Tree.stm -> Tree.stm
 end
 
 module X86Frame : FRAME = struct
@@ -76,6 +82,7 @@ module X86Frame : FRAME = struct
     else InReg (Temp.new_temp ())
 
   let fp = Temp.new_temp ()
+  let rv = Temp.new_temp ()
 
   let exp a e =
     match a with
@@ -83,6 +90,9 @@ module X86Frame : FRAME = struct
     | InReg r -> Tree.TEMP r
 
   let externalCall (s, args) = Tree.CALL (Tree.NAME (Temp.named_label s), args)
+
+  (* TODO: Implement this *)
+  let procEntryExit1 (_, stm) = stm
 
   let%test_unit "test_all_escape_formals" =
     let frame =

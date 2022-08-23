@@ -10,6 +10,7 @@ module type TRANSLATE = sig
   type exp
   type level
   type access (* Not the same as Frame.access *)
+  type frag
 
   type new_level_args = {
     parent : level;
@@ -40,7 +41,9 @@ module type TRANSLATE = sig
   val forExp : exp * exp * exp * exp * Temp.label -> exp
   val breakExp : Temp.label -> exp
   val seqExp : exp list -> exp
-  val getResult : unit -> Frame.frag list
+  val procEntryExit : exp * level -> unit
+  val getResult : unit -> frag list
+  val init : unit -> unit
 end
 
 module Translate : TRANSLATE = struct
@@ -65,6 +68,8 @@ module Translate : TRANSLATE = struct
     name : Temp.label;
     formals : bool list;
   }
+
+  type frag = Frame.frag
 
   let outermost =
     {
@@ -347,5 +352,13 @@ module Translate : TRANSLATE = struct
         let rest = List.rev (List.tl rev) in
         Ex (T.ESEQ (seq (List.map unNx rest), unEx last))
 
+  let procEntryExit (exp, lvl) =
+    let body_with_return = T.MOVE (T.TEMP Frame.rv, unEx exp) in
+    let processed_body = Frame.procEntryExit1 (lvl.frame, body_with_return) in
+    let frag = Frame.PROC { frame = lvl.frame; body = processed_body } in
+    frags := frag :: !frags;
+    ()
+
   let getResult () = !frags
+  let init () = frags := []
 end
