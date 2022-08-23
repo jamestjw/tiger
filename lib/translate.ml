@@ -98,6 +98,7 @@ module Translate : TRANSLATE = struct
   let static_link l = List.hd (Frame.formals l.frame)
   let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
   let default_exp = Ex (Tree.CONST 0)
+  let frags : Frame.frag list ref = ref []
 
   let rec seq = function
     | [ a ] -> a
@@ -155,22 +156,54 @@ module Translate : TRANSLATE = struct
     in
     Ex (do_one_level l (T.TEMP Frame.fp))
 
+  let stringExp s =
+    (* Create a new label and attach a string with this
+       label to the fragment list *)
+    let lab = Temp.new_label () in
+    frags := Frame.STRING (lab, s) :: !frags;
+    Ex (T.NAME lab)
+
   let binOpPlus e1 e2 = Tree.BINOP (Tree.PLUS, e1, e2)
   let binOpMul e1 e2 = Tree.BINOP (Tree.MUL, e1, e2)
 
-  (* TODO: Emit code for bounds checking *)
+  (* TODO: Emit code for bounds checking.
+     Idea: Use the first word to store the array length
+     and use that to carry out bounds checking. *)
   let subscriptVar (var_exp, index_exp) =
     Ex
       (T.MEM
          (binOpPlus (unEx var_exp)
             (binOpMul (T.CONST Frame.word_size) (unEx index_exp))))
 
-  (* TODO: Emit code to guard against null pointer deference *)
+  (* Assume that stdlib functions do not require a static link *)
+  let callStdlibExp (name, args) =
+    Ex (T.CALL (T.NAME name, T.CONST 0 :: List.map unEx args))
+
   let fieldVar (var_exp, field_index) =
+    (* Store the record pointer in a register so we can
+       check that it is not null *)
+    let r = Temp.new_temp () in
+    let quit_label = Temp.new_label () in
+    let ok_label = Temp.new_label () in
     Ex
-      (T.MEM
-         (binOpPlus (unEx var_exp)
-            (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))))
+      (T.ESEQ
+         ( seq
+             [
+               T.MOVE (T.TEMP r, unEx var_exp);
+               T.CJUMP (T.EQ, T.TEMP r, T.CONST 0, quit_label, ok_label);
+               T.LABEL quit_label;
+               (* If we encounter a null pointer, print a message and exit *)
+               unNx
+                 (callStdlibExp
+                    ( Temp.named_label "print",
+                      [ stringExp "Null pointer dereference" ] ));
+               unNx
+                 (callStdlibExp (Temp.named_label "exit", [ Ex (T.CONST 1) ]));
+               T.LABEL ok_label;
+             ],
+           T.MEM
+             (binOpPlus (T.TEMP r)
+                (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))) ))
 
   let assignExp (var, exp) = Nx (T.MOVE (unEx var, unEx exp))
 
@@ -245,15 +278,6 @@ module Translate : TRANSLATE = struct
            unNx t;
            T.LABEL end_label;
          ])
-
-  let frags : Frame.frag list ref = ref []
-
-  let stringExp s =
-    (* Create a new label and attach a string with this
-       label to the fragment list *)
-    let lab = Temp.new_label () in
-    frags := Frame.STRING (lab, s) :: !frags;
-    Ex (T.NAME lab)
 
   let recordExp fields =
     let num_fields = List.length fields in
