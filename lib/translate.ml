@@ -35,7 +35,7 @@ module type TRANSLATE = sig
   val stringExp : string -> exp
   val recordExp : exp list -> exp
   val arrayExp : exp * exp -> exp
-  val callExp : Temp.label * exp list -> exp
+  val callExp : Temp.label * exp list * level * level -> exp
   val whileExp : exp * exp * Temp.label -> exp
   val forExp : exp * exp * exp * exp * Temp.label -> exp
   val breakExp : Temp.label -> exp
@@ -276,7 +276,23 @@ module Translate : TRANSLATE = struct
   let arrayExp (size, init) =
     Ex (Frame.externalCall ("initArray", [ unEx size; unEx init ]))
 
-  let callExp (name, args) = Ex (T.CALL (T.NAME name, List.map unEx args))
+  let findFunctionStaticLink (fn_level, call_level) =
+    let rec do_one_level curr_level frame_addr =
+      (* If we are at the right level, then just load from this frame *)
+      if level_equal fn_level curr_level then
+        Frame.exp (static_link fn_level) frame_addr
+      else
+        match curr_level.parent with
+        | Some parent ->
+            (* Otherwise, follow the static link to the parent *)
+            do_one_level parent (Frame.exp (static_link curr_level) frame_addr)
+        | None -> Errormsg.ErrorMsg.impossible "Missing parent level"
+    in
+    Ex (do_one_level call_level (T.TEMP Frame.fp))
+
+  let callExp (name, args, fn_level, call_level) =
+    let call_args = findFunctionStaticLink (fn_level, call_level) :: args in
+    Ex (T.CALL (T.NAME name, List.map unEx call_args))
 
   let whileExp (test, body, end_label) =
     let start_label = Temp.new_label () in

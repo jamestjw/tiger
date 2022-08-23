@@ -64,7 +64,7 @@ module Semant : SEMANT = struct
       | A.StringExp (s, _) -> { exp = Translate.stringExp s; ty = Types.STRING }
       | A.CallExp { func = id; args; pos } -> (
           match Symbol.look (venv, id) with
-          | Some (E.FunEntry { formals; result; label; _ }) ->
+          | Some (E.FunEntry { formals; result; label; level = fn_level; _ }) ->
               let args_len = List.length args in
               let formals_len = List.length formals in
               if args_len = formals_len then
@@ -72,7 +72,8 @@ module Semant : SEMANT = struct
                   List.map processArg (List.combine args formals)
                 in
                 {
-                  exp = Translate.callExp (label, processed_args);
+                  exp =
+                    Translate.callExp (label, processed_args, fn_level, level);
                   ty = actual_ty result;
                 }
               else (
