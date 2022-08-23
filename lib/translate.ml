@@ -41,6 +41,7 @@ module type TRANSLATE = sig
   val forExp : exp * exp * exp * exp * Temp.label -> exp
   val breakExp : Temp.label -> exp
   val seqExp : exp list -> exp
+  val intExp : int -> exp
   val procEntryExit : exp * level -> unit
   val getResult : unit -> frag list
   val init : unit -> unit
@@ -351,6 +352,8 @@ module Translate : TRANSLATE = struct
         let last = List.hd rev in
         let rest = List.rev (List.tl rev) in
         Ex (T.ESEQ (seq (List.map unNx rest), unEx last))
+
+  let intExp i = Ex (T.CONST i)
 
   let procEntryExit (exp, lvl) =
     let body_with_return = T.MOVE (T.TEMP Frame.rv, unEx exp) in
