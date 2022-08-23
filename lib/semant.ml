@@ -22,7 +22,7 @@ module type SEMANT = sig
   val transExp : venv * tenv * senv * Translate.level * A.exp -> expty
   val transDecs : venv * tenv * senv * Translate.level * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
-  val transProg : A.exp -> Translate.frag list
+  val transProg : A.exp -> Translate.exp * Translate.frag list
 end
 
 module Semant : SEMANT = struct
@@ -594,9 +594,10 @@ module Semant : SEMANT = struct
 
   let transProg exp =
     Translate.init ();
-    ignore
-      (transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp));
-    Translate.getResult ()
+    let res_expty =
+      transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp)
+    in
+    (res_expty.exp, Translate.getResult ())
 end
 
 open Base
