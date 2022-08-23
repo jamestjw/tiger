@@ -59,8 +59,8 @@ module Semant : SEMANT = struct
 
   let rec transExp (venv, tenv, senv, level, exp) =
     let rec trexp = function
-      | A.NilExp _ -> { exp = Translate.default_exp; ty = Types.NIL }
-      | A.IntExp _ -> { exp = Translate.default_exp; ty = Types.INT }
+      | A.NilExp _ -> { exp = Translate.intExp 0; ty = Types.NIL }
+      | A.IntExp i -> { exp = Translate.intExp i; ty = Types.INT }
       | A.StringExp (s, _) -> { exp = Translate.stringExp s; ty = Types.STRING }
       | A.CallExp { func = id; args; pos } -> (
           match Symbol.look (venv, id) with
