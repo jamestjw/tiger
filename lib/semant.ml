@@ -22,7 +22,7 @@ module type SEMANT = sig
   val transExp : venv * tenv * senv * Translate.level * A.exp -> expty
   val transDecs : venv * tenv * senv * Translate.level * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
-  val transProg : A.exp -> unit
+  val transProg : A.exp -> Translate.frag list
 end
 
 module Semant : SEMANT = struct
@@ -489,15 +489,16 @@ module Semant : SEMANT = struct
               in
               List.fold_left2 do_param venv params (Translate.formals level')
             in
-            let body_type = transExp (venv', tenv, senv, level', body) in
+            let body_expty = transExp (venv', tenv, senv, level', body) in
             let res_type = actual_ty result in
-            if not (Types.equals (res_type, body_type.ty)) then
+            if not (Types.equals (res_type, body_expty.ty)) then
               ErrorMsg.error_pos (A.exp_pos body)
                 (Printf.sprintf
                    "function return type does not match body, required %s got \
                     %s instead"
                    (Types.to_string result)
-                   (Types.to_string body_type.ty))
+                   (Types.to_string body_expty.ty));
+            Translate.procEntryExit (body_expty.exp, level')
         | _ -> raise Internal_error);
         { venv; tenv; inits = [] }
     | A.VarDec { name; typ = None; init; escape; _ } ->
@@ -592,8 +593,10 @@ module Semant : SEMANT = struct
             Types.ARRAY (Types.INT, ref ()))
 
   let transProg exp =
+    Translate.init ();
     ignore
-      (transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp))
+      (transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp));
+    Translate.getResult ()
 end
 
 open Base
