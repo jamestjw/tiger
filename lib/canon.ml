@@ -5,6 +5,7 @@
 open Temp
 open Tree
 open Errormsg
+open Symbol
 module T = Tree
 
 module type CANON = sig
@@ -25,7 +26,17 @@ module type CANON = sig
      Also produce the "label" to which control will be passed
      upon exit. *)
   val basicBlocks : Tree.stm list -> Tree.stm list list * Temp.label
-  (* val traceSchedule : Tree.stm list list * Temp.label -> Tree.stm list *)
+
+  (* From a list of basic blocks satisfying properties 1-6,
+     along with an "exit" label,
+     produce a list of stms such that:
+       1. and 2. as above;
+       7. Every CJUMP(_,t,f) is immediately followed by LABEL f.
+            The blocks are reordered to satisfy property 7; also
+            in this reordering as many JUMP(T.NAME(lab)) statements
+            as possible are eliminated by falling through into T.LABEL(lab).
+  *)
+  val traceSchedule : Tree.stm list list * Temp.label -> Tree.stm list
 end
 
 module Canon : CANON = struct
@@ -188,4 +199,88 @@ module Canon : CANON = struct
       | stms, blist -> blocks (T.LABEL (Temp.new_label ()) :: stms, blist)
     in
     (blocks (stms, []), done_label)
+
+  (* Enters a block to the table, this only works if the block starts with a LABEL.
+     The block is added to the table using the said label. *)
+  let enterblock block table =
+    match block with
+    | T.LABEL s :: _ as b -> Symbol.enter (table, s, b)
+    | _ -> table
+
+  (* Returns the original list without its last element, and the last
+     element itself. This function does not accept the empty list. *)
+  let rec splitlast = function
+    | [ x ] -> ([], x)
+    | h :: t ->
+        let t', last = splitlast t in
+        (h :: t', last)
+    | [] ->
+        ErrorMsg.impossible
+          "It shouldn't be possible for an empty list to be passed to splitlast"
+
+  let rec trace (table, block, rest) =
+    match block with
+    | T.LABEL lab :: _ as b -> (
+        (* Mark a block as processed by changing it to the empty list *)
+        let table = Symbol.enter (table, lab, []) in
+        match splitlast b with
+        | most, T.JUMP (T.NAME lab, _) -> (
+            (* We try to skip the jump instruction by falling through
+               to the destination block, i.e. we make the jump unconditional *)
+            match Symbol.look (table, lab) with
+            | Some (_ :: _ as b') -> most @ trace (table, b', rest)
+            (* If the false block is already marked, then we are unable to skip
+               the jump, hence we just move on with the rest. *)
+            | _ -> b @ getnext (table, rest))
+        | most, T.CJUMP (opr, x, y, t, f) -> (
+            match (Symbol.look (table, t), Symbol.look (table, f)) with
+            (* We try to skip the jump instruction by falling through
+               to the false block *)
+            | _, Some (_ :: _ as b') -> b @ trace (table, b', rest)
+            (* If we only find the true block, we negate the condition
+               so that we can fall through to the true block instead (so
+               that we consistently fall through to the 'false' block ) *)
+            | Some (_ :: _ as b'), _ ->
+                most
+                @ [ T.CJUMP (T.notRel opr, x, y, f, t) ]
+                @ trace (table, b', rest)
+            (* We do this to ensure that each CJUMP is followed by its false
+               label no matter what *)
+            | _ ->
+                let f' = Temp.new_label () in
+                most
+                @ [
+                    T.CJUMP (opr, x, y, t, f');
+                    T.LABEL f';
+                    T.JUMP (T.NAME f, [ f ]);
+                  ]
+                @ getnext (table, rest))
+        (* If we are not jumping to a label we can't optimise anything,
+           hence we move on. *)
+        | _, T.JUMP _ -> b @ getnext (table, rest)
+        | _ ->
+            ErrorMsg.impossible
+              "Impossible for last statement in the block to not be a JUMP or \
+               CJUMP")
+    | _ ->
+        ErrorMsg.impossible
+          "Impossible for block to not start with a label in trace function"
+
+  (* Fetches the next block and processes it *)
+  and getnext = function
+    | table, (T.LABEL lab :: _ as b) :: rest -> (
+        match Symbol.look (table, lab) with
+        | Some (_ :: _) -> trace (table, b, rest)
+        (* When the block is empty, it means that we have already processed it,
+           i.e. we can move on *)
+        | _ -> getnext (table, rest))
+    | _, [] -> []
+    | _ ->
+        ErrorMsg.impossible
+          "Impossible for block to not start with a label in getnext function"
+
+  let traceSchedule (blocks, done_label) =
+    (* TODO: Why fold_right? *)
+    getnext (List.fold_right enterblock blocks Symbol.empty, blocks)
+    @ [ T.LABEL done_label ]
 end

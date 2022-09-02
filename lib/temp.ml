@@ -20,11 +20,13 @@ module type TEMP = sig
   val named_label : string -> label
 end
 
-module Temp : TEMP = struct
+module Temp = struct
+  (* Abstract names for local variables *)
   type temp = int [@@deriving compare, sexp]
 
   let temps = ref 100
 
+  (* Returns a new temporary from an infinite set of temps *)
   let new_temp () =
     let t = !temps in
     temps := t + 1;
@@ -32,6 +34,7 @@ module Temp : TEMP = struct
 
   let make_string t = "t" ^ Int.to_string t
 
+  (* Abstract names for static memory addresses *)
   type label = Symbol.symbol
 
   let postinc x =
@@ -40,6 +43,11 @@ module Temp : TEMP = struct
     i
 
   let labs = ref 0
+
+  (* Returns a new label from an infinite set of labels *)
   let new_label () = Symbol.to_symbol (Printf.sprintf "L%d" (postinc labs))
+
+  (* Returns a new label whose assembly-language name is
+     what's passed in *)
   let named_label = Symbol.to_symbol
 end
