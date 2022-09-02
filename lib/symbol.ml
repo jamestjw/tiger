@@ -1,20 +1,7 @@
 open Base
 open Errormsg
 
-module type SYMBOL = sig
-  type symbol [@@deriving compare, sexp, equal]
-
-  val to_symbol : string -> symbol
-  val name : symbol -> string
-
-  type 'a tbl
-
-  val empty : 'a tbl
-  val enter : 'a tbl * symbol * 'a -> 'a tbl
-  val look : 'a tbl * symbol -> 'a option
-end
-
-module Symbol : SYMBOL = struct
+module Symbol = struct
   type symbol = string * int [@@deriving compare, sexp, equal]
 
   module H = Hashtbl

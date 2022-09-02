@@ -77,4 +77,17 @@ module Tree = struct
     | ULE
     | UGT
     | UGE
+
+  (* Negate a relative operator *)
+  let notRel = function
+    | EQ -> NE
+    | NE -> EQ
+    | LT -> GE
+    | GT -> LE
+    | LE -> GT
+    | GE -> LT
+    | ULT -> UGE
+    | UGT -> ULE
+    | ULE -> UGT
+    | UGE -> ULT
 end
