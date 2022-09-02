@@ -14,8 +14,18 @@ module type CANON = sig
       2.  The parent of every CALL is an EXP(..) or a MOVE(TEMP t,..)
   *)
   val linearize : Tree.stm -> Tree.stm list
-  (* val basicBlocks : Tree.stm list -> Tree.stm list list * Temp.label
-     val traceSchedule : Tree.stm list list * Temp.label -> Tree.stm list *)
+
+  (* From a list of cleaned trees, produce a list of
+      basic blocks satisfying the following properties:
+        1. and 2. as above;
+        3.  Every block begins with a LABEL;
+        4.  A LABEL appears only at the beginning of a block;
+        5.  Any JUMP or CJUMP is the last stm in a block;
+        6.  Every block ends with a JUMP or CJUMP;
+     Also produce the "label" to which control will be passed
+     upon exit. *)
+  val basicBlocks : Tree.stm list -> Tree.stm list list * Temp.label
+  (* val traceSchedule : Tree.stm list list * Temp.label -> Tree.stm list *)
 end
 
 module Canon : CANON = struct
@@ -148,4 +158,34 @@ module Canon : CANON = struct
       | s, l -> s :: l
     in
     linear (do_stm stm0, [])
+
+  let basicBlocks stms =
+    let done_label = Temp.new_label () in
+    (* Pass in remaining statements and an accumulator list *)
+    let rec blocks = function
+      | (T.LABEL _ as head) :: tail, blist ->
+          let rec next = function
+            (* A block is ended when a JUMP/CJUMP is encountered *)
+            | (T.JUMP _ as s) :: rest, thisblock ->
+                endblock (rest, s :: thisblock)
+            | (T.CJUMP _ as s) :: rest, thisblock ->
+                endblock (rest, s :: thisblock)
+            (* A new block is started when a LABEL is encountered *)
+            | (T.LABEL lab :: _ as stms), thisblock ->
+                next (T.JUMP (T.NAME lab, [ lab ]) :: stms, thisblock)
+            | s :: rest, thisblock -> next (rest, s :: thisblock)
+            (* When we run out of statements, end the block with a
+               jump to the done label *)
+            | [], thisblock ->
+                next ([ T.JUMP (T.NAME done_label, [ done_label ]) ], thisblock)
+          and endblock (stms, thisblock) =
+            blocks (stms, List.rev thisblock :: blist)
+          in
+          next (tail, [ head ])
+      | [], blist -> List.rev blist
+      (* If a block doesn't start with a label, we stick an invented
+         label at the beginning *)
+      | stms, blist -> blocks (T.LABEL (Temp.new_label ()) :: stms, blist)
+    in
+    (blocks (stms, []), done_label)
 end
