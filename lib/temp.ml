@@ -18,6 +18,13 @@ module type TEMP = sig
   (* Returns a new label whose assembly-language name is
      what's passed in *)
   val named_label : string -> label
+
+  (* Table of temps *)
+  type 'a tbl
+
+  val empty : 'a tbl
+  val enter : 'a tbl * temp * 'a -> 'a tbl
+  val look : 'a tbl * temp -> 'a option
 end
 
 module Temp = struct
@@ -50,4 +57,13 @@ module Temp = struct
   (* Returns a new label whose assembly-language name is
      what's passed in *)
   let named_label = Symbol.to_symbol
+
+  (* Map that has an Int key (i.e. same type as temp) and 'a value *)
+  module IntMap = Caml.Map.Make (Int)
+
+  type 'a tbl = 'a IntMap.t
+
+  let empty = IntMap.empty
+  let enter (t, temp, v) = IntMap.add temp v t
+  let look (t, temp) = IntMap.find_opt temp t
 end
