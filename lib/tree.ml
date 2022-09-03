@@ -31,7 +31,7 @@ module Tree = struct
     | MOVE of exp * exp
     (* Evaluates the expression and discards the result *)
     | EXP of exp
-    (* JUMP(e, labs) Jump to address e. The destionation e may be a literal label, e.g.
+    (* JUMP(e, labs) Jump to address e. The destination e may be a literal label, e.g.
        NAME(lab), or an address calculated by other expressions. The list of labels
        specifies all the possible locations that the expression e can evaluate to; this
        is necessary for dataflow analysis later.
@@ -57,11 +57,12 @@ module Tree = struct
     | AND
     | OR
     | XOR
-    (* Integer logical shift operators *)
-    | LSHIFT
-    | RSHIFT
-    (* Integer arithmetic right-shift *)
-    | ARSHIFT
+  (* TODO: Implement when necessary *)
+  (* Integer logical shift operators
+     | LSHIFT
+     | RSHIFT
+     (* Integer arithmetic right-shift *)
+     | ARSHIFT *)
 
   and relop =
     (* Integer equality and nonequality (signed and unsigned) *)
@@ -72,11 +73,13 @@ module Tree = struct
     | GT
     | LE
     | GE
-    (* Unsigned integer inequalities *)
-    | ULT
-    | ULE
-    | UGT
-    | UGE
+
+  (* TODO: Implement when necessary *)
+  (* Unsigned integer inequalities
+     | ULT
+     | ULE
+     | UGT
+     | UGE *)
 
   (* Negate a relative operator *)
   let notRel = function
@@ -86,8 +89,4 @@ module Tree = struct
     | GT -> LE
     | LE -> GT
     | GE -> LT
-    | ULT -> UGE
-    | UGT -> ULE
-    | ULE -> UGT
-    | UGE -> ULT
 end

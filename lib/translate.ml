@@ -21,7 +21,7 @@ module type TRANSLATE = sig
   val outermost : level
   val new_level : new_level_args -> level
   val formals : level -> access list
-  val alloc_local : level -> bool -> access
+  val alloc_local : level -> bool -> int -> access
   val default_exp : exp
 
   (* Access of the variable and the level in which it is used *)
@@ -45,6 +45,7 @@ module type TRANSLATE = sig
   val procEntryExit : exp * level -> unit
   val getResult : unit -> frag list
   val init : unit -> unit
+  val unNx : exp -> T.stm
 end
 
 module Translate : TRANSLATE = struct
@@ -96,7 +97,7 @@ module Translate : TRANSLATE = struct
       (List.tl (Frame.formals l.frame))
 
   let static_link l = List.hd (Frame.formals l.frame)
-  let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
+  let alloc_local l escape local_num = (l, Frame.alloc_local escape local_num)
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
 

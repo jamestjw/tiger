@@ -10,7 +10,7 @@ module type TEMP = sig
   val make_string : temp -> string
 
   (* Abstract names for static memory addresses *)
-  type label
+  type label [@@deriving compare, sexp]
 
   (* Returns a new label from an infinite set of labels *)
   val new_label : unit -> label
@@ -18,6 +18,7 @@ module type TEMP = sig
   (* Returns a new label whose assembly-language name is
      what's passed in *)
   val named_label : string -> label
+  val label_to_string : label -> string
 
   (* Table of temps *)
   type 'a tbl
@@ -25,6 +26,7 @@ module type TEMP = sig
   val empty : 'a tbl
   val enter : 'a tbl * temp * 'a -> 'a tbl
   val look : 'a tbl * temp -> 'a option
+  val reset : unit -> unit
 end
 
 module Temp = struct
@@ -41,8 +43,7 @@ module Temp = struct
 
   let make_string t = "t" ^ Int.to_string t
 
-  (* Abstract names for static memory addresses *)
-  type label = Symbol.symbol
+  type label = Symbol.symbol [@@deriving compare, sexp]
 
   let postinc x =
     let i = !x in
@@ -57,6 +58,7 @@ module Temp = struct
   (* Returns a new label whose assembly-language name is
      what's passed in *)
   let named_label = Symbol.to_symbol
+  let label_to_string = Symbol.name
 
   (* Map that has an Int key (i.e. same type as temp) and 'a value *)
   module IntMap = Caml.Map.Make (Int)
@@ -66,4 +68,9 @@ module Temp = struct
   let empty = IntMap.empty
   let enter (t, temp, v) = IntMap.add temp v t
   let look (t, temp) = IntMap.find_opt temp t
+
+  let reset () =
+    (* Just so that we have enough labels for initial stuff *)
+    labs := 50;
+    temps := 130
 end
