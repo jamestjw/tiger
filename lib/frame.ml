@@ -1,5 +1,7 @@
-open Temp
+open Assem
 open Base
+open Symbol
+open Temp
 open Tree
 
 module type FRAME = sig
@@ -20,20 +22,36 @@ module type FRAME = sig
      where the formal parameters will be kept at run time,
      as seen from inside the callee *)
   val formals : frame -> access list
-  val alloc_local : frame -> bool -> access
+  val alloc_local : bool -> int -> access
 
   (* The expression that is passed in is the address of the stack frame
      that the access lives in*)
   val exp : access -> Tree.exp -> Tree.exp
   val word_size : int
+
+  (* Special registers:
+     1. Frame pointer
+     2. Return value
+     3. Return address *)
   val fp : Temp.temp
   val rv : Temp.temp
+  val ra : Temp.temp
+  val sp : Temp.temp
   val externalCall : string * Tree.exp list -> Tree.exp
 
   (* Handles the view shift by
      1. Moving incoming formals
      2. Saving and restoring callee-save registers *)
   val procEntryExit1 : frame * Tree.stm -> Tree.stm
+  val procEntryExit2 : frame * Assem.instr list -> Assem.instr list
+
+  type fn_prolog_epilog = {
+    prolog : string;
+    body : Assem.instr list;
+    epilog : string;
+  }
+
+  val procEntryExit3 : frame * Assem.instr list -> fn_prolog_epilog
 
   type register
 
@@ -141,7 +159,6 @@ module RiscVFrame : FRAME = struct
     name : Temp.label;
     formals : bool list;
     locals : access list ref;
-    next_local_offset : int ref;
   }
 
   type new_frame_args = { name : Temp.label; formals : bool list }
@@ -155,13 +172,12 @@ module RiscVFrame : FRAME = struct
   (* The stack pointer points to the first argument not passed in a register *)
   let formals_start_offset = 0
 
+  (* First position in the stack seems to be -24(s0) *)
+  let local_start_offset = -24
+
   (* Args go in a0 - a7 *)
   let num_formals_in_registers = 8
-
-  let new_frame { name; formals } =
-    (* First position in the stack seems to be -24(s0) *)
-    { name; formals; locals = ref []; next_local_offset = ref (-24) }
-
+  let new_frame { name; formals } = { name; formals; locals = ref [] }
   let name (f : frame) = f.name
 
   let formals (f : frame) =
@@ -176,15 +192,14 @@ module RiscVFrame : FRAME = struct
     in
     List.rev l
 
-  let alloc_local f is_escape =
-    if is_escape then (
-      let res = InFrame !(f.next_local_offset) in
-      f.next_local_offset := !(f.next_local_offset) - word_size;
-      res)
+  let alloc_local is_escape local_num =
+    if is_escape then InFrame (local_start_offset - (word_size * local_num))
     else InReg (Temp.new_temp ())
 
   let fp = Temp.new_temp ()
   let rv = Temp.new_temp ()
+  let ra = Temp.new_temp ()
+  let sp = Temp.new_temp ()
 
   let exp a e =
     match a with
@@ -214,9 +229,9 @@ module RiscVFrame : FRAME = struct
     processRegisterList
       [
         ("zero", Temp.new_temp ());
-        ("sp", Temp.new_temp ());
+        ("sp", sp);
         ("s0", Temp.new_temp ()) (* Frame pointer *);
-        ("ra", Temp.new_temp ());
+        ("ra", ra);
         ("a0", rv)
         (* TODO: should return value be here on in args register list? *);
         ("fp", fp);
@@ -266,6 +281,35 @@ module RiscVFrame : FRAME = struct
     | Some r -> r
     | None -> Temp.make_string temp
 
+  let procEntryExit2 (_frame, body) =
+    body
+    @ [
+        Assem.OPER
+          {
+            assem = "";
+            (* To indicate to the register allocator that zero, return-address, stack-pointer
+               registers are still live at the end of the function *)
+            src = [ zero; ra; sp ] @ callee_saves;
+            dst = [];
+            jump = Some [];
+          };
+      ]
+
+  type fn_prolog_epilog = {
+    prolog : string;
+    body : Assem.instr list;
+    epilog : string;
+  }
+
+  let procEntryExit3 ((frame : frame), body) =
+    {
+      prolog =
+        Printf.sprintf "\t.globl\t%s\n.type\t%s, @function\n"
+          (Symbol.name frame.name) (Symbol.name frame.name);
+      body;
+      epilog = "";
+    }
+
   let%test_unit "test_all_escape_formals" =
     let frame =
       new_frame
@@ -274,12 +318,9 @@ module RiscVFrame : FRAME = struct
     [%test_eq: access list] (formals frame) [ InFrame 0; InFrame 8; InFrame 16 ]
 
   let%test_unit "test_all_escape_locals" =
-    let frame =
-      new_frame { name = Temp.named_label "frame_name"; formals = [] }
-    in
     let expected = [ InFrame (-24); InFrame (-32); InFrame (-40) ] in
     [%test_eq: access list]
-      (List.map ~f:(fun _ -> alloc_local frame true) expected)
+      (List.map ~f:(fun i -> alloc_local true i) [ 0; 1; 2 ])
       expected
 
   let%test_unit "test_special_registers_named" =

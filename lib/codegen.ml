@@ -1,0 +1,545 @@
+open Assem
+open Errormsg
+open Frame
+open Tree
+open Temp
+module A = Assem
+module T = Tree
+
+module type CODEGEN = sig
+  val codegen : Frame.frame -> Tree.stm -> Assem.instr list
+end
+
+module RiscVGen : CODEGEN = struct
+  (* Since the calling convention of this ISA uses a real
+     frame pointer, we don't need to use a hack to calculate
+     the frame pointer, i.e. we ignore the frame argument *)
+  let codegen _frame stm =
+    let ilist : A.instr list ref = ref [] in
+    let emit x = ilist := x :: !ilist in
+
+    let calldefs = [ Frame.rv; Frame.rv ] @ Frame.caller_saves in
+
+    let rec munchStm = function
+      | T.SEQ (a, b) ->
+          munchStm a;
+          munchStm b
+      (* Storing to memory address (calculated by adding an expression to a constant) *)
+      | T.MOVE (T.MEM (T.BINOP (T.PLUS, e1, T.CONST i)), e2) ->
+          emit
+            (A.OPER
+               {
+                 assem = Printf.sprintf "addi 's2, 's0, %d\nsd 's1, 0('s2)\n" i;
+                 src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
+                 dst = [];
+                 jump = None;
+               })
+      (* Same as above, but different order of addition *)
+      | T.MOVE (T.MEM (T.BINOP (T.PLUS, T.CONST i, e1)), e2) ->
+          emit
+            (A.OPER
+               {
+                 assem = Printf.sprintf "addi 's2, 's0, %d\nsd 's1, 0('s2)\n" i;
+                 src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
+                 dst = [];
+                 jump = None;
+               })
+      | T.MOVE (T.MEM e1, T.MEM e2) ->
+          emit
+            (A.OPER
+               {
+                 (* Dereference s1 and store in s1, then
+                    dereference s0 and store s1 there *)
+                 assem = "ld 's1, 0('s1)\nsd 's1, 0('s0)\n";
+                 src = [ munchExp e1; munchExp e2 ];
+                 dst = [];
+                 jump = None;
+               })
+      | T.MOVE (T.MEM (T.CONST i), e2) ->
+          let t = Temp.new_temp () in
+          emit
+            (A.OPER
+               {
+                 (* Store the integer in a register, dereference it and store
+                    e2 in it. *)
+                 assem = Printf.sprintf "li 's0, %d\nsd 's1, 0('s0)\n" i;
+                 src = [ t; munchExp e2 ];
+                 dst = [];
+                 jump = None;
+               })
+      | T.MOVE (T.MEM e1, e2) ->
+          emit
+            (A.OPER
+               {
+                 (* Dereference e1 and store e2 there *)
+                 assem = "sd 's1, 0('s0)\n";
+                 src = [ munchExp e1; munchExp e2 ];
+                 dst = [];
+                 jump = None;
+               })
+      | T.MOVE (T.TEMP i, e2) ->
+          emit (A.MOVE { assem = "mv 'd0, 's0\n"; src = munchExp e2; dst = i })
+      | T.MOVE (_, _) ->
+          ErrorMsg.impossible
+            "T.MOVE's first operand has to either be T.TEMP or T.MEM"
+      | T.EXP exp -> (
+          match exp with
+          | T.BINOP (_, e1, e2) ->
+              (* Since the result is discarded, we don't bother evaluating
+                 the binary operation*)
+              ignore (munchExp e1);
+              ignore (munchExp e2)
+          | T.CALL (e, args) -> (
+              match e with
+              | T.NAME name ->
+                  emit
+                    (A.OPER
+                       {
+                         assem =
+                           Printf.sprintf "call %s\n" (A.label_to_string name);
+                         (* munchArgs returns list of temporaries that are
+                            used in the function call, we put them here so that
+                            future liveliness analysis can tell that these values
+                            are needed up until the call *)
+                         src = munchArgs (0, args);
+                         dst = calldefs;
+                         jump = None;
+                       })
+              | _ -> ErrorMsg.impossible "Function must be called with label")
+          | T.ESEQ (stm, e) ->
+              munchStm stm;
+              ignore (munchExp e)
+          | _ ->
+              (* Since we do not need to yield a value,
+                 there is no point evaluating the other
+                 expressions *)
+              ())
+      | T.JUMP (e, _labels) -> (
+          match e with
+          | T.NAME label ->
+              emit
+                (A.OPER
+                   {
+                     (* TODO: Check if unconditional jump works *)
+                     assem = "j 'j0\n";
+                     src = [];
+                     dst = [];
+                     jump = Some [ label ];
+                   })
+          | _ -> ErrorMsg.impossible "Impossible to jump to a non-label")
+      | T.LABEL lab ->
+          emit
+            (A.LABEL
+               { assem = Printf.sprintf "%s:\n" (A.label_to_string lab); lab })
+      | T.CJUMP (op, e1, e2, t_label, f_label) ->
+          let branchOpMap = function
+            | T.EQ -> "beq"
+            | T.NE -> "bne"
+            | T.LT | T.LE -> "blt"
+            | T.GE | T.GT -> "bge"
+          in
+          (* Produces the below code:
+              beq a1, a2, true_label
+              j , false_label
+          *)
+          let e1_temp = munchExp e1 in
+          let e2_temp = munchExp e2 in
+          (* Add 1 to e2 so that we can use LT for this comparison *)
+          if op = T.LE then
+            emit
+              (A.OPER
+                 {
+                   assem = Printf.sprintf "addi 's0, 's0, 1\n";
+                   src = [ e2_temp ];
+                   dst = [];
+                   jump = None;
+                 });
+          (* Add 1 to e2 so that we can use GE for this comparison *)
+          if op = T.GT then
+            emit
+              (A.OPER
+                 {
+                   assem = Printf.sprintf "addi 's0, 's0, 1\n";
+                   src = [ e2_temp ];
+                   dst = [];
+                   jump = None;
+                 });
+          emit
+            (A.OPER
+               {
+                 assem = Printf.sprintf "%s 's0, 's1, 'j0\n" (branchOpMap op);
+                 src = [ e1_temp; e2_temp ];
+                 dst = [];
+                 jump = Some [ t_label ];
+               });
+          emit
+            (A.OPER
+               {
+                 assem = "j 'j0\n";
+                 src = [];
+                 dst = [];
+                 jump = Some [ f_label ];
+               })
+    and munchExp exp =
+      let result gen =
+        let t = Temp.new_temp () in
+        gen t;
+        t
+      in
+      match exp with
+      | T.MEM (T.BINOP (T.PLUS, e1, T.CONST i)) ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     (* Dereference and store in a register *)
+                     assem =
+                       Printf.sprintf "addi 'd0, 's0, %d\nld 'd0, 0('d0)\n" i;
+                     src = [ munchExp e1 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      (* Same as above *)
+      | T.MEM (T.BINOP (T.PLUS, T.CONST i, e1)) ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem =
+                       Printf.sprintf "addi 'd0, 's0, %d\nld 'd0, 0('d0)\n" i;
+                     src = [ munchExp e1 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.MEM (T.CONST i) ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     (* Put the integer in a register and dereference it *)
+                     assem = Printf.sprintf "li 'd0, %d\nld 'd0, 0('d0)\n" i;
+                     src = [];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.MEM e1 ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = "ld 'd0, 0('s0)\n";
+                     src = [ munchExp e1 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.BINOP (T.PLUS, e1, T.CONST i) ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = Printf.sprintf "addi 'd0, 's0, %d\n" i;
+                     src = [ munchExp e1 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.BINOP (T.PLUS, T.CONST i, e1) ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = Printf.sprintf "addi 'd0, 's0, %d\n" i;
+                     src = [ munchExp e1 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.BINOP (op, e1, e2) ->
+          let opMap = function
+            | T.PLUS -> "add"
+            | T.MINUS -> "sub"
+            | T.MUL -> "mul"
+            | T.DIV -> "div"
+            | T.AND -> "and"
+            | T.OR -> "or"
+            | T.XOR -> "xor"
+          in
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = Printf.sprintf "%s 'd0, 's0, 's1\n" (opMap op);
+                     src = [ munchExp e1; munchExp e2 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.CONST i ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = Printf.sprintf "li 'd0, %d\n" i;
+                     src = [];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.TEMP t -> t
+      | T.CALL (e, args) -> (
+          match e with
+          | T.NAME name ->
+              result (fun r ->
+                  emit
+                    (A.OPER
+                       {
+                         (* Call function and store return value in a register to return *)
+                         assem =
+                           Printf.sprintf "call %s\nmv 'd0, 'd1\n"
+                             (A.label_to_string name);
+                         (* munchArgs returns list of temporaries that are
+                            used in the function call, we put them here so that
+                            future liveliness analysis can tell that these values
+                            are needed up until the call *)
+                         src = munchArgs (0, args);
+                         dst = r :: Frame.rv :: calldefs;
+                         jump = None;
+                       }))
+          | _ -> ErrorMsg.impossible "Function must be called with label")
+      | T.NAME _ ->
+          ErrorMsg.impossible "Name should not be a stand-alone expression"
+      | T.ESEQ (stm, e) ->
+          munchStm stm;
+          munchExp e
+    (* Returns temps corresponding to registers used *)
+    and munchArgs (i, args) =
+      match args with
+      | arg :: rest -> (
+          (* Either write argument to register or to memory *)
+          match List.nth_opt Frame.arg_regs i with
+          | Some reg ->
+              emit
+                (A.MOVE
+                   { assem = "mv 'd0, 's0\n"; src = munchExp arg; dst = reg });
+              (* Include register used in the return list *)
+              reg :: munchArgs (i + 1, rest)
+          | None ->
+              let offset = Frame.word_size * (i - List.length Frame.arg_regs) in
+              emit
+                (A.OPER
+                   {
+                     assem = Printf.sprintf "sd 's0, %d('d0)\n" offset;
+                     src = [ munchExp arg ];
+                     dst = [ Frame.fp ];
+                     jump = None;
+                   });
+
+              munchArgs (i + 1, rest))
+      | [] -> []
+    in
+
+    munchStm stm;
+    List.rev !ilist
+
+  (* Tests *)
+
+  open Base
+  open Canon
+  open Semant
+  open Translate
+
+  let canonize stm =
+    Canon.linearize stm |> Canon.basicBlocks |> Canon.traceSchedule
+
+  let%test_unit "test_simple_function_call_with_addition" =
+    Temp.reset ();
+
+    let frame =
+      Frame.new_frame { name = Temp.named_label "main"; formals = [] }
+    in
+    let input_string =
+      {|
+      let 
+        var x := 8
+        var y := 10
+      in 
+        print(chr(x + y))
+      end
+    |}
+    in
+    let exp, _ = Semant.transProg (Parser.parse_string input_string) in
+    let stm = canonize (Translate.unNx exp) in
+    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let expected =
+      [
+        "L51:\n";
+        "li t135, 10\n";
+        "addi t134, fp, -32\nsd t135, 0(t134)\n";
+        "li t137, 8\n";
+        "addi t136, fp, -24\nsd t137, 0(t136)\n";
+        "addi t138, fp, 0\nld t138, 0(t138)\n";
+        "mv t133, t138\n";
+        "addi t140, fp, 0\nld t140, 0(t140)\n";
+        "mv a1, t140\n";
+        "addi t142, fp, -32\nld t142, 0(t142)\n";
+        "addi t143, fp, -24\nld t143, 0(t143)\n";
+        "add t141, t143, t142\n";
+        "mv a2, t141\n";
+        "call chr\nmv t139, a0\n";
+        "mv t132, t139\n";
+        "mv a1, t133\n";
+        "mv a2, t132\n";
+        "call print\n";
+        "j L50\n";
+        "L50:\n";
+      ]
+    in
+    [%test_eq: string list]
+      (List.map ~f:(Assem.format Frame.registerToString) res)
+      expected
+
+  let%test_unit "test_if_statement" =
+    Temp.reset ();
+
+    let frame =
+      Frame.new_frame { name = Temp.named_label "main"; formals = [] }
+    in
+    let input_string =
+      {|
+      let 
+        var x := 8
+        var y := 10
+      in 
+        if x < y then 20 else 30
+      end
+    |}
+    in
+    let exp, _ = Semant.transProg (Parser.parse_string input_string) in
+    let stm = canonize (Translate.unNx exp) in
+    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let expected =
+      [
+        "L54:\n";
+        "li t132, 10\n";
+        "addi t131, fp, -32\nsd t132, 0(t131)\n";
+        "li t134, 8\n";
+        "addi t133, fp, -24\nsd t134, 0(t133)\n";
+        "addi t135, fp, -24\nld t135, 0(t135)\n";
+        "addi t136, fp, -32\nld t136, 0(t136)\n";
+        "blt t135, t136, L50\n";
+        "j L51\n";
+        "L51:\n";
+        "li t137, 30\n";
+        "mv t130, t137\n";
+        "L52:\n";
+        "j L53\n";
+        "L50:\n";
+        "li t138, 20\n";
+        "mv t130, t138\n";
+        "j L52\n";
+        "L53:\n";
+      ]
+    in
+    [%test_eq: string list]
+      (List.map ~f:(Assem.format Frame.registerToString) res)
+      expected
+
+  let%test_unit "test_for_loop" =
+    Temp.reset ();
+
+    let frame =
+      Frame.new_frame { name = Temp.named_label "main"; formals = [] }
+    in
+    let input_string = {|
+      for i := 0 to 10 do exit(i)
+    |} in
+    let exp, _ = Semant.transProg (Parser.parse_string input_string) in
+    let stm = canonize (Translate.unNx exp) in
+    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let expected =
+      [
+        "L54:\n";
+        "li t133, 0\n";
+        "addi t132, fp, -24\nsd t133, 0(t132)\n";
+        "li t134, 10\n";
+        "mv t131, t134\n";
+        "addi t135, fp, -24\nld t135, 0(t135)\n";
+        "addi t131, t131, 1\n";
+        "blt t135, t131, L51\n";
+        "j L50\n";
+        "L50:\n";
+        "j L53\n";
+        "L51:\n";
+        "addi t136, fp, 0\nld t136, 0(t136)\n";
+        "mv a1, t136\n";
+        "addi t137, fp, -24\nld t137, 0(t137)\n";
+        "mv a2, t137\n";
+        "call exit\n";
+        "addi t138, fp, -24\nld t138, 0(t138)\n";
+        "bge t138, t131, L50\n";
+        "j L52\n";
+        "L52:\n";
+        "addi t141, fp, -24\nld t141, 0(t141)\n";
+        "addi t140, t141, 1\n";
+        "addi t139, fp, -24\nsd t140, 0(t139)\n";
+        "j L51\n";
+        "L53:\n";
+      ]
+    in
+    [%test_eq: string list]
+      (List.map ~f:(Assem.format Frame.registerToString) res)
+      expected
+
+  let%test_unit "test_while_loop" =
+    Temp.reset ();
+
+    let frame =
+      Frame.new_frame { name = Temp.named_label "main"; formals = [] }
+    in
+    let input_string =
+      {|
+      let
+        var i := 0
+        var max := 10
+      in
+        while i < max
+        do (print(chr(i)); i := i + 1)
+      end
+    |}
+    in
+    let exp, _ = Semant.transProg (Parser.parse_string input_string) in
+    let stm = canonize (Translate.unNx exp) in
+    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let expected =
+      [
+        "L54:\n";
+        "li t135, 10\n";
+        "addi t134, fp, -32\nsd t135, 0(t134)\n";
+        "li t137, 0\n";
+        "addi t136, fp, -24\nsd t137, 0(t136)\n";
+        "L51:\n";
+        "addi t138, fp, -24\nld t138, 0(t138)\n";
+        "addi t139, fp, -32\nld t139, 0(t139)\n";
+        "blt t138, t139, L52\n";
+        "j L50\n";
+        "L50:\n";
+        "j L53\n";
+        "L52:\n";
+        "addi t140, fp, 0\nld t140, 0(t140)\n";
+        "mv t133, t140\n";
+        "addi t142, fp, 0\nld t142, 0(t142)\n";
+        "mv a1, t142\n";
+        "addi t143, fp, -24\nld t143, 0(t143)\n";
+        "mv a2, t143\n";
+        "call chr\nmv t141, a0\n";
+        "mv t132, t141\n";
+        "mv a1, t133\n";
+        "mv a2, t132\n";
+        "call print\n";
+        "addi t146, fp, -24\nld t146, 0(t146)\n";
+        "addi t145, t146, 1\n";
+        "addi t144, fp, -24\nsd t145, 0(t144)\n";
+        "j L51\n";
+        "L53:\n";
+      ]
+    in
+    [%test_eq: string list]
+      (List.map ~f:(Assem.format Frame.registerToString) res)
+      expected
+end

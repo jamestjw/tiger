@@ -41,7 +41,7 @@ module Env = struct
     in
     List.fold_left
       (fun env (name, formals, ret_type) ->
-        let label = Temp.new_label () in
+        let label = Temp.named_label name in
         Symbol.enter
           ( env,
             Symbol.to_symbol name,
