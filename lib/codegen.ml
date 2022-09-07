@@ -135,7 +135,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.LABEL
                { assem = Printf.sprintf "%s:\n" (A.label_to_string lab); lab })
-      | T.CJUMP (op, e1, e2, t_label, f_label) ->
+      | T.CJUMP (op, e1, e2, t_label, _f_label) ->
           let branchOpMap = function
             | T.EQ -> "beq"
             | T.NE -> "bne"
@@ -168,6 +168,7 @@ module RiscVGen : CODEGEN = struct
                    dst = [];
                    jump = None;
                  });
+          (* Since we expect the false label to follow a CJUMP, we can just fall-through to it *)
           emit
             (A.OPER
                {
@@ -175,14 +176,6 @@ module RiscVGen : CODEGEN = struct
                  src = [ e1_temp; e2_temp ];
                  dst = [];
                  jump = Some [ t_label ];
-               });
-          emit
-            (A.OPER
-               {
-                 assem = "\tj 'j0\n";
-                 src = [];
-                 dst = [];
-                 jump = Some [ f_label ];
                })
     and munchExp exp =
       let result gen =
@@ -449,7 +442,6 @@ module RiscVGen : CODEGEN = struct
         "\taddi t135, fp, -24\n\tld t135, 0(t135)\n";
         "\taddi t136, fp, -32\n\tld t136, 0(t136)\n";
         "\tblt t135, t136, L50\n";
-        "\tj L51\n";
         "L51:\n";
         "\tli t137, 30\n";
         "\tmv t130, t137\n";
@@ -488,7 +480,6 @@ module RiscVGen : CODEGEN = struct
         "\taddi t135, fp, -24\n\tld t135, 0(t135)\n";
         "\taddi t131, t131, 1\n";
         "\tblt t135, t131, L51\n";
-        "\tj L50\n";
         "L50:\n";
         "\tj L53\n";
         "L51:\n";
@@ -499,7 +490,6 @@ module RiscVGen : CODEGEN = struct
         "\tcall exit\n";
         "\taddi t138, fp, -24\n\tld t138, 0(t138)\n";
         "\tbge t138, t131, L50\n";
-        "\tj L52\n";
         "L52:\n";
         "\taddi t141, fp, -24\n\tld t141, 0(t141)\n";
         "\taddi t140, t141, 1\n";
@@ -543,7 +533,6 @@ module RiscVGen : CODEGEN = struct
         "\taddi t138, fp, -24\n\tld t138, 0(t138)\n";
         "\taddi t139, fp, -32\n\tld t139, 0(t139)\n";
         "\tblt t138, t139, L52\n";
-        "\tj L50\n";
         "L50:\n";
         "\tj L53\n";
         "L52:\n";
