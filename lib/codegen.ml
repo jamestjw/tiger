@@ -30,7 +30,8 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
+                 assem =
+                   Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
                  src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
                  dst = [];
                  jump = None;
@@ -40,7 +41,8 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
+                 assem =
+                   Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
                  src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
                  dst = [];
                  jump = None;
@@ -79,7 +81,8 @@ module RiscVGen : CODEGEN = struct
                  jump = None;
                })
       | T.MOVE (T.TEMP i, e2) ->
-          emit (A.MOVE { assem = "\tmv 'd0, 's0\n"; src = munchExp e2; dst = i })
+          emit
+            (A.MOVE { assem = "\tmv 'd0, 's0\n"; src = munchExp e2; dst = i })
       | T.MOVE (_, _) ->
           ErrorMsg.impossible
             "T.MOVE's first operand has to either be T.TEMP or T.MEM"
@@ -195,7 +198,8 @@ module RiscVGen : CODEGEN = struct
                    {
                      (* Dereference and store in a register *)
                      assem =
-                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n" i;
+                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n"
+                         i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -207,7 +211,8 @@ module RiscVGen : CODEGEN = struct
                 (A.OPER
                    {
                      assem =
-                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n" i;
+                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n"
+                         i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
