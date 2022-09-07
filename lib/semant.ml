@@ -17,6 +17,7 @@ module type SEMANT = sig
   type senv (* Scope environment *)
 
   exception Internal_error
+  exception Semantic_error
 
   val transVar : venv * tenv * senv * Translate.level * A.var -> expty
   val transExp : venv * tenv * senv * Translate.level * A.exp -> expty
@@ -43,6 +44,7 @@ module Semant : SEMANT = struct
   }
 
   exception Internal_error
+  exception Semantic_error
 
   let check_type (required_type, { ty; _ }, pos, msg) =
     if ty != required_type then ErrorMsg.error_pos pos msg
@@ -609,8 +611,6 @@ module Semant : SEMANT = struct
               (Printf.sprintf "undefined type: %s" (Symbol.name t));
             Types.ARRAY (Types.INT, ref ()))
 
-  exception Semantic_error
-
   let transProg exp =
     Translate.init ();
     let res_expty =
@@ -620,8 +620,12 @@ module Semant : SEMANT = struct
     else (res_expty.exp, Translate.getResult ())
 end
 
+(* Tests *)
+
 open Base
 open Errormsg
+
+exception Missing_exception
 
 let%test_unit "successfully_run_semant_on_test_files" =
   let do_file filename =
@@ -649,5 +653,9 @@ let%test_unit "legal_break_statement_in_while_loop" =
 
 let%expect_test "illegal_break_statement_outside_of_for_loop" =
   let input_string = "let in break end" in
-  ignore (Semant.transProg (Parser.parse_string input_string));
-  [%expect {| :1.7: encountered break statement when not in loop |}]
+  try
+    ignore (Semant.transProg (Parser.parse_string input_string));
+    raise Missing_exception
+  with Semant.Semantic_error ->
+    ();
+    [%expect {| :1.7: encountered break statement when not in loop |}]
