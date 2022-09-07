@@ -8,6 +8,7 @@ module T = Tree
 
 module type CODEGEN = sig
   val codegen : Frame.frame -> Tree.stm -> Assem.instr list
+  val generateString : Assem.label -> string -> Assem.instr
 end
 
 module RiscVGen : CODEGEN = struct
@@ -29,7 +30,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = Printf.sprintf "addi 's2, 's0, %d\nsd 's1, 0('s2)\n" i;
+                 assem = Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
                  src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
                  dst = [];
                  jump = None;
@@ -39,7 +40,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = Printf.sprintf "addi 's2, 's0, %d\nsd 's1, 0('s2)\n" i;
+                 assem = Printf.sprintf "\taddi 's2, 's0, %d\n\tsd 's1, 0('s2)\n" i;
                  src = [ munchExp e1; munchExp e2; Temp.new_temp () ];
                  dst = [];
                  jump = None;
@@ -50,7 +51,7 @@ module RiscVGen : CODEGEN = struct
                {
                  (* Dereference s1 and store in s1, then
                     dereference s0 and store s1 there *)
-                 assem = "ld 's1, 0('s1)\nsd 's1, 0('s0)\n";
+                 assem = "\tld 's1, 0('s1)\n\tsd 's1, 0('s0)\n";
                  src = [ munchExp e1; munchExp e2 ];
                  dst = [];
                  jump = None;
@@ -62,7 +63,7 @@ module RiscVGen : CODEGEN = struct
                {
                  (* Store the integer in a register, dereference it and store
                     e2 in it. *)
-                 assem = Printf.sprintf "li 's0, %d\nsd 's1, 0('s0)\n" i;
+                 assem = Printf.sprintf "\tli 's0, %d\n\tsd 's1, 0('s0)\n" i;
                  src = [ t; munchExp e2 ];
                  dst = [];
                  jump = None;
@@ -72,13 +73,13 @@ module RiscVGen : CODEGEN = struct
             (A.OPER
                {
                  (* Dereference e1 and store e2 there *)
-                 assem = "sd 's1, 0('s0)\n";
+                 assem = "\tsd 's1, 0('s0)\n";
                  src = [ munchExp e1; munchExp e2 ];
                  dst = [];
                  jump = None;
                })
       | T.MOVE (T.TEMP i, e2) ->
-          emit (A.MOVE { assem = "mv 'd0, 's0\n"; src = munchExp e2; dst = i })
+          emit (A.MOVE { assem = "\tmv 'd0, 's0\n"; src = munchExp e2; dst = i })
       | T.MOVE (_, _) ->
           ErrorMsg.impossible
             "T.MOVE's first operand has to either be T.TEMP or T.MEM"
@@ -96,7 +97,7 @@ module RiscVGen : CODEGEN = struct
                     (A.OPER
                        {
                          assem =
-                           Printf.sprintf "call %s\n" (A.label_to_string name);
+                           Printf.sprintf "\tcall %s\n" (A.label_to_string name);
                          (* munchArgs returns list of temporaries that are
                             used in the function call, we put them here so that
                             future liveliness analysis can tell that these values
@@ -121,7 +122,7 @@ module RiscVGen : CODEGEN = struct
                 (A.OPER
                    {
                      (* TODO: Check if unconditional jump works *)
-                     assem = "j 'j0\n";
+                     assem = "\tj 'j0\n";
                      src = [];
                      dst = [];
                      jump = Some [ label ];
@@ -149,7 +150,7 @@ module RiscVGen : CODEGEN = struct
             emit
               (A.OPER
                  {
-                   assem = Printf.sprintf "addi 's0, 's0, 1\n";
+                   assem = Printf.sprintf "\taddi 's0, 's0, 1\n";
                    src = [ e2_temp ];
                    dst = [];
                    jump = None;
@@ -159,7 +160,7 @@ module RiscVGen : CODEGEN = struct
             emit
               (A.OPER
                  {
-                   assem = Printf.sprintf "addi 's0, 's0, 1\n";
+                   assem = Printf.sprintf "\taddi 's0, 's0, 1\n";
                    src = [ e2_temp ];
                    dst = [];
                    jump = None;
@@ -167,7 +168,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = Printf.sprintf "%s 's0, 's1, 'j0\n" (branchOpMap op);
+                 assem = Printf.sprintf "\t%s 's0, 's1, 'j0\n" (branchOpMap op);
                  src = [ e1_temp; e2_temp ];
                  dst = [];
                  jump = Some [ t_label ];
@@ -175,7 +176,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem = "j 'j0\n";
+                 assem = "\tj 'j0\n";
                  src = [];
                  dst = [];
                  jump = Some [ f_label ];
@@ -194,7 +195,7 @@ module RiscVGen : CODEGEN = struct
                    {
                      (* Dereference and store in a register *)
                      assem =
-                       Printf.sprintf "addi 'd0, 's0, %d\nld 'd0, 0('d0)\n" i;
+                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n" i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -206,7 +207,7 @@ module RiscVGen : CODEGEN = struct
                 (A.OPER
                    {
                      assem =
-                       Printf.sprintf "addi 'd0, 's0, %d\nld 'd0, 0('d0)\n" i;
+                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n" i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -217,7 +218,7 @@ module RiscVGen : CODEGEN = struct
                 (A.OPER
                    {
                      (* Put the integer in a register and dereference it *)
-                     assem = Printf.sprintf "li 'd0, %d\nld 'd0, 0('d0)\n" i;
+                     assem = Printf.sprintf "\tli 'd0, %d\n\tld 'd0, 0('d0)\n" i;
                      src = [];
                      dst = [ r ];
                      jump = None;
@@ -227,7 +228,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = "ld 'd0, 0('s0)\n";
+                     assem = "\tld 'd0, 0('s0)\n";
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -237,7 +238,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = Printf.sprintf "addi 'd0, 's0, %d\n" i;
+                     assem = Printf.sprintf "\taddi 'd0, 's0, %d\n" i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -247,7 +248,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = Printf.sprintf "addi 'd0, 's0, %d\n" i;
+                     assem = Printf.sprintf "\taddi 'd0, 's0, %d\n" i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
@@ -266,7 +267,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = Printf.sprintf "%s 'd0, 's0, 's1\n" (opMap op);
+                     assem = Printf.sprintf "\t%s 'd0, 's0, 's1\n" (opMap op);
                      src = [ munchExp e1; munchExp e2 ];
                      dst = [ r ];
                      jump = None;
@@ -276,7 +277,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = Printf.sprintf "li 'd0, %d\n" i;
+                     assem = Printf.sprintf "\tli 'd0, %d\n" i;
                      src = [];
                      dst = [ r ];
                      jump = None;
@@ -291,7 +292,7 @@ module RiscVGen : CODEGEN = struct
                        {
                          (* Call function and store return value in a register to return *)
                          assem =
-                           Printf.sprintf "call %s\nmv 'd0, 'd1\n"
+                           Printf.sprintf "\tcall %s\n\tmv 'd0, 'd1\n"
                              (A.label_to_string name);
                          (* munchArgs returns list of temporaries that are
                             used in the function call, we put them here so that
@@ -302,8 +303,19 @@ module RiscVGen : CODEGEN = struct
                          jump = None;
                        }))
           | _ -> ErrorMsg.impossible "Function must be called with label")
-      | T.NAME _ ->
-          ErrorMsg.impossible "Name should not be a stand-alone expression"
+      | T.NAME lab ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem =
+                       Printf.sprintf
+                         "\tlui 'd0, %%hi(%s)\n\taddi 'd0, 'd0, %%lo(%s)\n"
+                         (A.label_to_string lab) (A.label_to_string lab);
+                     src = [];
+                     dst = [ r ];
+                     jump = None;
+                   }))
       | T.ESEQ (stm, e) ->
           munchStm stm;
           munchExp e
@@ -316,7 +328,7 @@ module RiscVGen : CODEGEN = struct
           | Some reg ->
               emit
                 (A.MOVE
-                   { assem = "mv 'd0, 's0\n"; src = munchExp arg; dst = reg });
+                   { assem = "\tmv 'd0, 's0\n"; src = munchExp arg; dst = reg });
               (* Include register used in the return list *)
               reg :: munchArgs (i + 1, rest)
           | None ->
@@ -324,7 +336,7 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     assem = Printf.sprintf "sd 's0, %d('d0)\n" offset;
+                     assem = Printf.sprintf "\tsd 's0, %d('d0)\n" offset;
                      src = [ munchExp arg ];
                      dst = [ Frame.fp ];
                      jump = None;
@@ -336,6 +348,15 @@ module RiscVGen : CODEGEN = struct
 
     munchStm stm;
     List.rev !ilist
+
+  let generateString lab str =
+    A.LABEL
+      {
+        assem =
+          Printf.sprintf "\t.text\n\t.section\t.rodata\n%s:\n\t.string \"%s\"\n"
+            (A.label_to_string lab) str;
+        lab;
+      }
 
   (* Tests *)
 
@@ -369,24 +390,24 @@ module RiscVGen : CODEGEN = struct
     let expected =
       [
         "L51:\n";
-        "li t135, 10\n";
-        "addi t134, fp, -32\nsd t135, 0(t134)\n";
-        "li t137, 8\n";
-        "addi t136, fp, -24\nsd t137, 0(t136)\n";
-        "addi t138, fp, 0\nld t138, 0(t138)\n";
-        "mv t133, t138\n";
-        "addi t140, fp, 0\nld t140, 0(t140)\n";
-        "mv a1, t140\n";
-        "addi t142, fp, -32\nld t142, 0(t142)\n";
-        "addi t143, fp, -24\nld t143, 0(t143)\n";
-        "add t141, t143, t142\n";
-        "mv a2, t141\n";
-        "call chr\nmv t139, a0\n";
-        "mv t132, t139\n";
-        "mv a1, t133\n";
-        "mv a2, t132\n";
-        "call print\n";
-        "j L50\n";
+        "\tli t135, 10\n";
+        "\taddi t134, fp, -32\n\tsd t135, 0(t134)\n";
+        "\tli t137, 8\n";
+        "\taddi t136, fp, -24\n\tsd t137, 0(t136)\n";
+        "\taddi t138, fp, 0\n\tld t138, 0(t138)\n";
+        "\tmv t133, t138\n";
+        "\taddi t140, fp, 0\n\tld t140, 0(t140)\n";
+        "\tmv a1, t140\n";
+        "\taddi t142, fp, -32\n\tld t142, 0(t142)\n";
+        "\taddi t143, fp, -24\n\tld t143, 0(t143)\n";
+        "\tadd t141, t143, t142\n";
+        "\tmv a2, t141\n";
+        "\tcall chr\n\tmv t139, a0\n";
+        "\tmv t132, t139\n";
+        "\tmv a1, t133\n";
+        "\tmv a2, t132\n";
+        "\tcall print\n";
+        "\tj L50\n";
         "L50:\n";
       ]
     in
@@ -416,23 +437,23 @@ module RiscVGen : CODEGEN = struct
     let expected =
       [
         "L54:\n";
-        "li t132, 10\n";
-        "addi t131, fp, -32\nsd t132, 0(t131)\n";
-        "li t134, 8\n";
-        "addi t133, fp, -24\nsd t134, 0(t133)\n";
-        "addi t135, fp, -24\nld t135, 0(t135)\n";
-        "addi t136, fp, -32\nld t136, 0(t136)\n";
-        "blt t135, t136, L50\n";
-        "j L51\n";
+        "\tli t132, 10\n";
+        "\taddi t131, fp, -32\n\tsd t132, 0(t131)\n";
+        "\tli t134, 8\n";
+        "\taddi t133, fp, -24\n\tsd t134, 0(t133)\n";
+        "\taddi t135, fp, -24\n\tld t135, 0(t135)\n";
+        "\taddi t136, fp, -32\n\tld t136, 0(t136)\n";
+        "\tblt t135, t136, L50\n";
+        "\tj L51\n";
         "L51:\n";
-        "li t137, 30\n";
-        "mv t130, t137\n";
+        "\tli t137, 30\n";
+        "\tmv t130, t137\n";
         "L52:\n";
-        "j L53\n";
+        "\tj L53\n";
         "L50:\n";
-        "li t138, 20\n";
-        "mv t130, t138\n";
-        "j L52\n";
+        "\tli t138, 20\n";
+        "\tmv t130, t138\n";
+        "\tj L52\n";
         "L53:\n";
       ]
     in
@@ -455,30 +476,30 @@ module RiscVGen : CODEGEN = struct
     let expected =
       [
         "L54:\n";
-        "li t133, 0\n";
-        "addi t132, fp, -24\nsd t133, 0(t132)\n";
-        "li t134, 10\n";
-        "mv t131, t134\n";
-        "addi t135, fp, -24\nld t135, 0(t135)\n";
-        "addi t131, t131, 1\n";
-        "blt t135, t131, L51\n";
-        "j L50\n";
+        "\tli t133, 0\n";
+        "\taddi t132, fp, -24\n\tsd t133, 0(t132)\n";
+        "\tli t134, 10\n";
+        "\tmv t131, t134\n";
+        "\taddi t135, fp, -24\n\tld t135, 0(t135)\n";
+        "\taddi t131, t131, 1\n";
+        "\tblt t135, t131, L51\n";
+        "\tj L50\n";
         "L50:\n";
-        "j L53\n";
+        "\tj L53\n";
         "L51:\n";
-        "addi t136, fp, 0\nld t136, 0(t136)\n";
-        "mv a1, t136\n";
-        "addi t137, fp, -24\nld t137, 0(t137)\n";
-        "mv a2, t137\n";
-        "call exit\n";
-        "addi t138, fp, -24\nld t138, 0(t138)\n";
-        "bge t138, t131, L50\n";
-        "j L52\n";
+        "\taddi t136, fp, 0\n\tld t136, 0(t136)\n";
+        "\tmv a1, t136\n";
+        "\taddi t137, fp, -24\n\tld t137, 0(t137)\n";
+        "\tmv a2, t137\n";
+        "\tcall exit\n";
+        "\taddi t138, fp, -24\n\tld t138, 0(t138)\n";
+        "\tbge t138, t131, L50\n";
+        "\tj L52\n";
         "L52:\n";
-        "addi t141, fp, -24\nld t141, 0(t141)\n";
-        "addi t140, t141, 1\n";
-        "addi t139, fp, -24\nsd t140, 0(t139)\n";
-        "j L51\n";
+        "\taddi t141, fp, -24\n\tld t141, 0(t141)\n";
+        "\taddi t140, t141, 1\n";
+        "\taddi t139, fp, -24\n\tsd t140, 0(t139)\n";
+        "\tj L51\n";
         "L53:\n";
       ]
     in
@@ -509,33 +530,33 @@ module RiscVGen : CODEGEN = struct
     let expected =
       [
         "L54:\n";
-        "li t135, 10\n";
-        "addi t134, fp, -32\nsd t135, 0(t134)\n";
-        "li t137, 0\n";
-        "addi t136, fp, -24\nsd t137, 0(t136)\n";
+        "\tli t135, 10\n";
+        "\taddi t134, fp, -32\n\tsd t135, 0(t134)\n";
+        "\tli t137, 0\n";
+        "\taddi t136, fp, -24\n\tsd t137, 0(t136)\n";
         "L51:\n";
-        "addi t138, fp, -24\nld t138, 0(t138)\n";
-        "addi t139, fp, -32\nld t139, 0(t139)\n";
-        "blt t138, t139, L52\n";
-        "j L50\n";
+        "\taddi t138, fp, -24\n\tld t138, 0(t138)\n";
+        "\taddi t139, fp, -32\n\tld t139, 0(t139)\n";
+        "\tblt t138, t139, L52\n";
+        "\tj L50\n";
         "L50:\n";
-        "j L53\n";
+        "\tj L53\n";
         "L52:\n";
-        "addi t140, fp, 0\nld t140, 0(t140)\n";
-        "mv t133, t140\n";
-        "addi t142, fp, 0\nld t142, 0(t142)\n";
-        "mv a1, t142\n";
-        "addi t143, fp, -24\nld t143, 0(t143)\n";
-        "mv a2, t143\n";
-        "call chr\nmv t141, a0\n";
-        "mv t132, t141\n";
-        "mv a1, t133\n";
-        "mv a2, t132\n";
-        "call print\n";
-        "addi t146, fp, -24\nld t146, 0(t146)\n";
-        "addi t145, t146, 1\n";
-        "addi t144, fp, -24\nsd t145, 0(t144)\n";
-        "j L51\n";
+        "\taddi t140, fp, 0\n\tld t140, 0(t140)\n";
+        "\tmv t133, t140\n";
+        "\taddi t142, fp, 0\n\tld t142, 0(t142)\n";
+        "\tmv a1, t142\n";
+        "\taddi t143, fp, -24\n\tld t143, 0(t143)\n";
+        "\tmv a2, t143\n";
+        "\tcall chr\n\tmv t141, a0\n";
+        "\tmv t132, t141\n";
+        "\tmv a1, t133\n";
+        "\tmv a2, t132\n";
+        "\tcall print\n";
+        "\taddi t146, fp, -24\n\tld t146, 0(t146)\n";
+        "\taddi t145, t146, 1\n";
+        "\taddi t144, fp, -24\n\tsd t145, 0(t144)\n";
+        "\tj L51\n";
         "L53:\n";
       ]
     in

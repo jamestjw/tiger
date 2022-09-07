@@ -6,49 +6,49 @@ open Errormsg
 module A = Absyn
 module T = Tree
 
-module type TRANSLATE = sig
-  type exp
-  type level
-  type access (* Not the same as Frame.access *)
-  type frag
+(* module type TRANSLATE = sig
+     type exp
+     type level
+     type access (* Not the same as Frame.access *)
+     type frag
 
-  type new_level_args = {
-    parent : level;
-    name : Temp.label;
-    formals : bool list;
-  }
+     type new_level_args = {
+       parent : level;
+       name : Temp.label;
+       formals : bool list;
+     }
 
-  val outermost : level
-  val new_level : new_level_args -> level
-  val formals : level -> access list
-  val alloc_local : level -> bool -> int -> access
-  val default_exp : exp
+     val outermost : level
+     val new_level : new_level_args -> level
+     val formals : level -> access list
+     val alloc_local : level -> bool -> int -> access
+     val default_exp : exp
 
-  (* Access of the variable and the level in which it is used *)
-  val simpleVar : access * level -> exp
-  val subscriptVar : exp * exp -> exp
-  val fieldVar : exp * int -> exp
-  val assignExp : exp * exp -> exp
-  val arithmeticOperation : exp * A.oper * exp -> exp
-  val comparisonOperation : exp * A.oper * exp -> exp
-  val ifThenElse : exp * exp * exp -> exp
-  val ifThen : exp * exp -> exp
-  val stringExp : string -> exp
-  val recordExp : exp list -> exp
-  val arrayExp : exp * exp -> exp
-  val callExp : Temp.label * exp list * level * level -> exp
-  val whileExp : exp * exp * Temp.label -> exp
-  val forExp : exp * exp * exp * exp * Temp.label -> exp
-  val breakExp : Temp.label -> exp
-  val seqExp : exp list -> exp
-  val intExp : int -> exp
-  val procEntryExit : exp * level -> unit
-  val getResult : unit -> frag list
-  val init : unit -> unit
-  val unNx : exp -> T.stm
-end
+     (* Access of the variable and the level in which it is used *)
+     val simpleVar : access * level -> exp
+     val subscriptVar : exp * exp -> exp
+     val fieldVar : exp * int -> exp
+     val assignExp : exp * exp -> exp
+     val arithmeticOperation : exp * A.oper * exp -> exp
+     val comparisonOperation : exp * A.oper * exp -> exp
+     val ifThenElse : exp * exp * exp -> exp
+     val ifThen : exp * exp -> exp
+     val stringExp : string -> exp
+     val recordExp : exp list -> exp
+     val arrayExp : exp * exp -> exp
+     val callExp : Temp.label * exp list * level * level -> exp
+     val whileExp : exp * exp * Temp.label -> exp
+     val forExp : exp * exp * exp * exp * Temp.label -> exp
+     val breakExp : Temp.label -> exp
+     val seqExp : exp list -> exp
+     val intExp : int -> exp
+     val procEntryExit : exp * level -> unit
+     val getResult : unit -> frag list
+     val init : unit -> unit
+     val unNx : exp -> T.stm
+   end *)
 
-module Translate : TRANSLATE = struct
+module Translate = struct
   type exp =
     | Ex of Tree.exp (* For expressions *)
     | Nx of Tree.stm (* For statements that produce no result *)
@@ -382,7 +382,8 @@ module Translate : TRANSLATE = struct
 
   let procEntryExit (exp, lvl) =
     let body_with_return = T.MOVE (T.TEMP Frame.rv, unEx exp) in
-    let processed_body = Frame.procEntryExit1 (lvl.frame, body_with_return) in
+    let body_with_lable = T.SEQ (T.LABEL (Frame.name lvl.frame), body_with_return) in
+    let processed_body = Frame.procEntryExit1 (lvl.frame, body_with_lable) in
     let frag = Frame.PROC { frame = lvl.frame; body = processed_body } in
     frags := frag :: !frags;
     ()
