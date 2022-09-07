@@ -16,6 +16,5 @@ find . -type f -name '*.opam' | sort -d | while read P; do
   eval `opam config env`
 done
 
-# Run the builds and tests
-dune build
-dune runtest
+# Extra dependencies
+opam install ocamlformat

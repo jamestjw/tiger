@@ -15,8 +15,17 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Build and run test"
+          name: "Setup environment"
           command: chmod +x ./.circleci/ci && ./.circleci/ci
+      - run:
+          name: "Build application"
+          command: opam exec -- dune build
+      - run:
+          name: "Run tests"
+          command: opam exec -- dune runtest
+      - run:
+          name: "Check formatting"
+          command: opam exec -- dune build @fmt
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
