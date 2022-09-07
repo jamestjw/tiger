@@ -609,12 +609,15 @@ module Semant : SEMANT = struct
               (Printf.sprintf "undefined type: %s" (Symbol.name t));
             Types.ARRAY (Types.INT, ref ()))
 
+  exception Semantic_error
+
   let transProg exp =
     Translate.init ();
     let res_expty =
       transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp)
     in
-    (res_expty.exp, Translate.getResult ())
+    if !ErrorMsg.anyErrors then raise Semantic_error
+    else (res_expty.exp, Translate.getResult ())
 end
 
 open Base

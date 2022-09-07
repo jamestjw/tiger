@@ -7,7 +7,9 @@ Implementing a compiler for `tiger` as described in the book **Modern Compiler I
 2. Parsing to AST
 3. Semantic analysis
 4. Production of activation records
-5. Translation to intermediate representation
+5. Translation to intermediate representation (IR)
+6. Producing basic blocks and traces from IR
+7. Instruction selection (Risc-V)
 
 ## Postprocessing
 A few steps need to be taken before the code can actually be run (this is only necessary if certain files are edited). All of the below operations are idempotent. A `./run_postprocessing.sh` bash file is included to run all of the below steps.
@@ -33,4 +35,9 @@ This generates `lib/grammar.ml` (this file is typically checked into the reposit
 To run unit tests
 ```bash
 dune runtest
+```
+## How to run compiler
+This commands compiles an input `tiger` file and produces a Risc-V assembly file.
+```bash
+dune exec bin/main.exe -- input.tig -o output.s
 ```
