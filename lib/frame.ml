@@ -304,7 +304,7 @@ module RiscVFrame : FRAME = struct
   let procEntryExit3 ((frame : frame), body) =
     {
       prolog =
-        Printf.sprintf "\t.globl\t%s\n.type\t%s, @function\n"
+        Printf.sprintf "\t.globl\t%s\n\t.type\t%s, @function\n"
           (Symbol.name frame.name) (Symbol.name frame.name);
       body;
       epilog = "";
