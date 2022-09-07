@@ -16,6 +16,16 @@
 (package
  (name tiger)
  (synopsis "A compiler for the tiger programming language")
- (description "Implementing a compiler for tiger as described in the book Modern Compiler Implementation in ML by Andrew Appel.")
- (depends ocaml dune stdio base ppx_inline_test ppx_assert ppx_expect)
- (tags (tiger compiler)))
+ (description
+  "Implementing a compiler for tiger as described in the book Modern Compiler Implementation in ML by Andrew Appel.")
+ (depends
+  ocaml
+  dune
+  stdio
+  base
+  ppx_inline_test
+  ppx_assert
+  ppx_expect
+  batteries)
+ (tags
+  (tiger compiler)))
