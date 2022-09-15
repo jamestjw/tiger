@@ -1,29 +1,29 @@
 open Base
-open Table
+(* open Table *)
+(*
+   module type GRAPH = sig
+     type graph
+     type node
+     type edge = { src : node; dst : node }
 
-module type GRAPH = sig
-  type graph
-  type node
-  type edge = { src : node; dst : node }
+     val nodes : graph -> node list
+     val succ : node -> node list
+     val pred : node -> node list
+     val adj : node -> node list (* succ+pred *)
+     val eq : node * node -> bool
+     val newGraph : unit -> graph
+     val newNode : graph -> node
 
-  val nodes : graph -> node list
-  val succ : node -> node list
-  val pred : node -> node list
-  val adj : node -> node list (* succ+pred *)
-  val eq : node * node -> bool
-  val newGraph : unit -> graph
-  val newNode : graph -> node
+     exception GraphEdge
 
-  exception GraphEdge
+     val mk_edge : edge -> unit
+     val rm_edge : edge -> unit
+     val nodename : node -> string (* for debugging only *)
 
-  val mk_edge : edge -> unit
-  val rm_edge : edge -> unit
-  val nodename : node -> string (* for debugging only *)
+     module Table : TABLE
+   end *)
 
-  module Table : TABLE
-end
-
-module Graph : GRAPH = struct
+module Graph = struct
   type node' = int
 
   (* type temp = Temp.temp *)
