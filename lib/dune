@@ -10,4 +10,4 @@
   (flags
    ; Disabled warnings
    ; 30: duplicate-definitions (We use similar names in some record fields)
-   (:standard -w -30))))
+   (:standard -w -30-27))))

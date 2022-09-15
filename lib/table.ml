@@ -1,11 +1,11 @@
-module type TABLE = sig
-  type key
-  type 'a tbl
+(* module type TABLE= sig
+     type key
+     type 'a tbl
 
-  val empty : 'a tbl
-  val enter : 'a tbl * key * 'a -> 'a tbl
-  val look : 'a tbl * key -> 'a option
-end
+     val empty : 'a tbl
+     val enter : 'a tbl * key * 'a -> 'a tbl
+     val look : 'a tbl * key -> 'a option
+   end *)
 
 module type KEY = sig
   type t
@@ -13,7 +13,7 @@ module type KEY = sig
   val getKey : t -> int
 end
 
-module IntMapTable (Key : KEY) : TABLE = struct
+module IntMapTable (Key : KEY) = struct
   module IntMap = Caml.Map.Make (Int)
 
   type 'a tbl = 'a IntMap.t
