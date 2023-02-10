@@ -17,6 +17,7 @@ depends: [
   "ppx_inline_test"
   "ppx_assert"
   "ppx_expect"
+  "batteries"
   "odoc" {with-doc}
 ]
 build: [

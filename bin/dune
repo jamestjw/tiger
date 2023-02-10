@@ -1,4 +1,4 @@
 (executable
  (public_name tiger)
  (name main)
- (libraries tiger))
+ (libraries tiger batteries))
