@@ -64,9 +64,10 @@ module Graph = struct
 
   exception GraphEdge
 
-  let check (_g, _g') =
-    (* if Poly.(g = g') then () else raise GraphEdge *)
-    ()
+  let check (g, g') =
+    BatDynArray.iter2
+      (fun a b -> if Poly.(a = b) then () else raise GraphEdge)
+      g g'
 
   (* Raises an exception if we try to delete something that
      isn't in the graph *)

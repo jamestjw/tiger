@@ -22,4 +22,6 @@ module IntMapTable (Key : KEY) = struct
   let empty = IntMap.empty
   let enter (t, k, v) = IntMap.add (Key.getKey k) v t
   let look (t, k) = IntMap.find_opt (Key.getKey k) t
+  let bindings = IntMap.bindings
+  let map = IntMap.map
 end

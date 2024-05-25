@@ -7,7 +7,7 @@ module MakeGraph = struct
   (* The function instrs2graph takes a list of instructions
      and returns a flow graph, along with a list of nodes that
      corresponds exactly to the instructions *)
-  let instrs2graph instrs =
+  let instrs2graph instrs : Flow.flowgraph * Flow.Graph.node list =
     let graph = Flow.Graph.newGraph () in
     let handle_instr instr (def_tbl, use_tbl, move_tbl, label2node) =
       let newNode = Flow.Graph.newNode graph in
