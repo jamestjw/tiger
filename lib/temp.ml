@@ -27,6 +27,8 @@ module type TEMP = sig
   val enter : 'a tbl * temp * 'a -> 'a tbl
   val look : 'a tbl * temp -> 'a option
   val reset : unit -> unit
+
+  module Set : Caml.Set.S
 end
 
 module Temp = struct
@@ -62,6 +64,9 @@ module Temp = struct
 
   (* Map that has an Int key (i.e. same type as temp) and 'a value *)
   module IntMap = Caml.Map.Make (Int)
+
+  (* Set of temporaries *)
+  module Set = Caml.Set.Make (Int)
 
   type 'a tbl = 'a IntMap.t
 
