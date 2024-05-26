@@ -27,13 +27,6 @@ module Liveness = struct
        - The list allows us to enumerate all live temporaries *)
   type liveMap = liveSet Flow.Graph.Table.tbl
 
-  (* Need set of temporaries when building live map *)
-  module TempSet = Set.Make (struct
-    type t = Temp.temp
-
-    let compare = Temp.compare_temp
-  end)
-
   (* Pretty print the graph:
      Print list of nodes in the interference graph, and for each node,
      a list of nodes adjacent to it *)
@@ -42,36 +35,36 @@ module Liveness = struct
   let mkLiveMap (g : Flow.flowgraph) : liveMap =
     let (FGRAPH { control; def; use; ismove }) = g in
     let nodes = Flow.Graph.nodes control in
-    let entry_count (m : (TempSet.t * TempSet.t) Flow.Graph.Table.tbl) : int =
+    let entry_count (m : (Temp.Set.t * Temp.Set.t) Flow.Graph.Table.tbl) : int =
       List.fold_left
         (fun acc (_, (s1, s2)) ->
-          acc + TempSet.cardinal s1 + TempSet.cardinal s2)
+          acc + Temp.Set.cardinal s1 + Temp.Set.cardinal s2)
         0
         (Flow.Graph.Table.bindings m)
     in
-    let rec helper (m : (TempSet.t * TempSet.t) Flow.Graph.Table.tbl) =
+    let rec helper (m : (Temp.Set.t * Temp.Set.t) Flow.Graph.Table.tbl) =
       let do_node m node =
         let ins, outs =
           Flow.Graph.Table.look (m, node)
-          |> Option.value ~default:(TempSet.empty, TempSet.empty)
+          |> Option.value ~default:(Temp.Set.empty, Temp.Set.empty)
         in
         let defs =
           Flow.Graph.Table.look (def, node)
-          |> Option.value ~default:[] |> TempSet.of_list
+          |> Option.value ~default:[] |> Temp.Set.of_list
         in
         let uses =
           Flow.Graph.Table.look (use, node)
-          |> Option.value ~default:[] |> TempSet.of_list
+          |> Option.value ~default:[] |> Temp.Set.of_list
         in
         let successor_ins =
           List.map
             (fun n ->
               Flow.Graph.Table.look (m, n)
-              |> Option.fold ~none:TempSet.empty ~some:(fun (ins, _) -> ins))
+              |> Option.fold ~none:Temp.Set.empty ~some:(fun (ins, _) -> ins))
             (Flow.Graph.succ node)
         in
-        let ins = TempSet.union uses @@ TempSet.diff outs defs in
-        let outs = List.fold_left TempSet.union TempSet.empty successor_ins in
+        let ins = Temp.Set.union uses @@ Temp.Set.diff outs defs in
+        let outs = List.fold_left Temp.Set.union Temp.Set.empty successor_ins in
         Flow.Graph.Table.enter (m, node, (ins, outs))
       in
       let res = List.fold_left do_node m nodes in
@@ -83,9 +76,9 @@ module Liveness = struct
     let in_out_tbl = helper Flow.Graph.Table.empty in
     Flow.Graph.Table.map
       (fun (_, outs) ->
-        let temp_list = List.of_seq @@ TempSet.to_seq outs in
+        let temp_list = List.of_seq @@ Temp.Set.to_seq outs in
         let temp_tbl =
-          TempSet.fold
+          Temp.Set.fold
             (fun temp tbl -> Temp.enter (tbl, temp, ()))
             outs Temp.empty
         in
