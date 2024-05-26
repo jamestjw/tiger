@@ -1,0 +1,265 @@
+open Flowgraph
+open Graph
+open Temp
+
+module Liveness = struct
+  module IGraph = Graph
+
+  type igraph =
+    | IGRAPH of {
+        (* Interference graph *)
+        graph : IGraph.graph;
+        (* Mapping from temporaries to graph nodes *)
+        tnode : Temp.temp -> IGraph.node;
+        (* Inverse of the above *)
+        gtemp : IGraph.node -> Temp.temp;
+        (* List of moves, i.e. given a pair (m , n), we know that
+           n is moved to m, and we would prefer for them both
+           to be assigned to the same register *)
+        moves : (IGraph.node * IGraph.node) list;
+      }
+
+  type liveSet = unit Temp.tbl * Temp.temp list
+
+  (* Map that keeps track of what is live at the exit of each node. The
+     liveset has a redundancy
+       - The table makes it easy to do membership tests
+       - The list allows us to enumerate all live temporaries *)
+  type liveMap = liveSet Flow.Graph.Table.tbl
+
+  (* Need set of temporaries when building live map *)
+  module TempSet = Set.Make (struct
+    type t = Temp.temp
+
+    let compare = Temp.compare_temp
+  end)
+
+  (* Pretty print the graph:
+     Print list of nodes in the interference graph, and for each node,
+     a list of nodes adjacent to it *)
+  let show (g : igraph) : unit = failwith "not implemented"
+
+  let mkLiveMap (g : Flow.flowgraph) : liveMap =
+    let (FGRAPH { control; def; use; ismove }) = g in
+    let nodes = Flow.Graph.nodes control in
+    let entry_count (m : (TempSet.t * TempSet.t) Flow.Graph.Table.tbl) : int =
+      List.fold_left
+        (fun acc (_, (s1, s2)) ->
+          acc + TempSet.cardinal s1 + TempSet.cardinal s2)
+        0
+        (Flow.Graph.Table.bindings m)
+    in
+    let rec helper (m : (TempSet.t * TempSet.t) Flow.Graph.Table.tbl) =
+      let do_node m node =
+        let ins, outs =
+          Flow.Graph.Table.look (m, node)
+          |> Option.value ~default:(TempSet.empty, TempSet.empty)
+        in
+        let defs =
+          Flow.Graph.Table.look (def, node)
+          |> Option.value ~default:[] |> TempSet.of_list
+        in
+        let uses =
+          Flow.Graph.Table.look (use, node)
+          |> Option.value ~default:[] |> TempSet.of_list
+        in
+        let successor_ins =
+          List.map
+            (fun n ->
+              Flow.Graph.Table.look (m, n)
+              |> Option.fold ~none:TempSet.empty ~some:(fun (ins, _) -> ins))
+            (Flow.Graph.succ node)
+        in
+        let ins = TempSet.union uses @@ TempSet.diff outs defs in
+        let outs = List.fold_left TempSet.union TempSet.empty successor_ins in
+        Flow.Graph.Table.enter (m, node, (ins, outs))
+      in
+      let res = List.fold_left do_node m nodes in
+      (* Since we only add entries, if the count doesn't increase then
+         we know that no change has occurred and that we have found the
+         fix point. *)
+      if entry_count m == entry_count res then res else helper res
+    in
+    let in_out_tbl = helper Flow.Graph.Table.empty in
+    Flow.Graph.Table.map
+      (fun (_, outs) ->
+        let temp_list = List.of_seq @@ TempSet.to_seq outs in
+        let temp_tbl =
+          TempSet.fold
+            (fun temp tbl -> Temp.enter (tbl, temp, ()))
+            outs Temp.empty
+        in
+        (temp_tbl, temp_list))
+      in_out_tbl
+
+  let mk_interference_graph (fg : Flow.flowgraph) :
+      igraph * (Flow.Graph.node -> Temp.temp list) =
+    let (FGRAPH { control; def; use; ismove }) = fg in
+    let lm = mkLiveMap fg in
+    let tnode_tbl : IGraph.node Temp.tbl = Temp.empty in
+    let gtemp_tbl : Temp.temp IGraph.Table.tbl = IGraph.Table.empty in
+    let get_node (g, tnode_tbl, gtemp_tbl) temp =
+      match Temp.look (tnode_tbl, temp) with
+      | Some node -> (node, g, tnode_tbl, gtemp_tbl)
+      | None ->
+          let ((g, i) as node) = IGraph.newNode g in
+          let tnode_tbl = Temp.enter (tnode_tbl, temp, node) in
+          let gtemp_tbl = IGraph.Table.enter (gtemp_tbl, node, temp) in
+          (node, g, tnode_tbl, gtemp_tbl)
+    in
+
+    let get_nodes (g, tnode_tbl, gtemp_tbl) node tbl =
+      Flow.table_get_list tbl node
+      |> List.fold_left
+           (fun (acc, g, tn, gt) temp ->
+             let node, g, tn, gt = get_node (g, tn, gt) temp in
+             (node :: acc, g, tn, gt))
+           ([], g, tnode_tbl, gtemp_tbl)
+    in
+    let live_out_fn (node : Flow.Graph.node) : Temp.temp list =
+      Flow.Graph.Table.look (lm, node)
+      |> Option.fold ~none:[] ~some:(fun (_, l) -> l)
+    in
+
+    let graph, tnode_tbl, gtemp_tbl, move_list =
+      List.fold_left
+        (fun (g, tn, gt, ml) node ->
+          let live_temps = live_out_fn node in
+          let defined_nodes, g, tn, gt = get_nodes (g, tn, gt) node def in
+          let used_nodes, g, tn, gt = get_nodes (g, tn, gt) node use in
+
+          let is_move =
+            Flow.Graph.Table.look (ismove, node) |> Option.value ~default:false
+          in
+          List.fold_left
+            (fun (g, tn, gt, ml) def_node ->
+              let g, tn, gt, ml =
+                List.fold_left
+                  (fun (g, tn, gt, ml) live_temp ->
+                    let live_node, g, tn, gt = get_node (g, tn, gt) live_temp in
+                    if
+                      (not is_move)
+                      || not
+                         @@ List.exists
+                              (fun e -> IGraph.eq (e, live_node))
+                              used_nodes
+                    then IGraph.mk_edge { src = def_node; dst = live_node };
+                    IGraph.mk_edge { src = live_node; dst = def_node };
+                    (g, tn, gt, ml))
+                  (g, tn, gt, ml) live_temps
+              in
+              let ml =
+                if is_move then
+                  List.fold_left
+                    (fun ml use_node -> (def_node, use_node) :: ml)
+                    ml used_nodes
+                else ml
+              in
+              (g, tn, gt, ml))
+            (g, tn, gt, ml) defined_nodes)
+        (IGraph.newGraph (), tnode_tbl, gtemp_tbl, [])
+        (Flow.Graph.nodes control)
+    in
+
+    ( IGRAPH
+        {
+          graph;
+          tnode = (fun temp -> Temp.look (tnode_tbl, temp) |> Option.get);
+          gtemp =
+            (fun node -> IGraph.Table.look (gtemp_tbl, node) |> Option.get);
+          moves = move_list;
+        },
+      live_out_fn )
+end
+
+let%test_unit "interference_graph_simple_block" =
+  (* Program:
+          a <- 0
+     L1 : b <- a + 1
+          c <- c + b
+          a <- b * 2
+          if a < N goto L1
+          return c
+
+     Expected interference graph:
+         a             b
+         │             │
+         │             │
+         │             │
+         │             │
+         │             │
+         └───── c ─────┘
+  *)
+  let a = Temp.new_temp () in
+  let b = Temp.new_temp () in
+  let c = Temp.new_temp () in
+  let graph = Flow.Graph.newGraph () in
+  let node1 = Flow.Graph.newNode graph in
+  let node2 = Flow.Graph.newNode graph in
+  let node3 = Flow.Graph.newNode graph in
+  let node4 = Flow.Graph.newNode graph in
+  let node5 = Flow.Graph.newNode graph in
+  let node6 = Flow.Graph.newNode graph in
+  Flow.Graph.mk_edge { src = node1; dst = node2 };
+  Flow.Graph.mk_edge { src = node2; dst = node3 };
+  Flow.Graph.mk_edge { src = node3; dst = node4 };
+  Flow.Graph.mk_edge { src = node4; dst = node5 };
+  Flow.Graph.mk_edge { src = node5; dst = node6 };
+  Flow.Graph.mk_edge { src = node5; dst = node2 };
+  let def =
+    List.fold_left
+      (fun tbl (node, l) -> Flow.Graph.Table.enter (tbl, node, l))
+      Flow.Graph.Table.empty
+      [
+        (node1, [ a ]);
+        (node2, [ b ]);
+        (node3, [ c ]);
+        (node4, [ a ]);
+        (node5, []);
+        (node6, []);
+      ]
+  in
+  let use =
+    List.fold_left
+      (fun tbl (node, l) -> Flow.Graph.Table.enter (tbl, node, l))
+      Flow.Graph.Table.empty
+      [
+        (node1, []);
+        (node2, [ a ]);
+        (node3, [ c; b ]);
+        (node4, [ b ]);
+        (node5, [ a ]);
+        (node6, [ c ]);
+      ]
+  in
+  let ismove =
+    List.fold_left
+      (fun tbl (node, b) -> Flow.Graph.Table.enter (tbl, node, b))
+      Flow.Graph.Table.empty
+      [
+        (node1, true);
+        (node2, true);
+        (node3, true);
+        (node4, true);
+        (node5, false);
+        (node6, false);
+      ]
+  in
+  let flowgraph = Flow.FGRAPH { control = graph; def; use; ismove } in
+  let IGRAPH { graph; tnode; gtemp; moves }, live_out_fn =
+    Liveness.mk_interference_graph flowgraph
+  in
+  let open Base in
+  [%test_eq: bool] true
+    (List.exists
+       (Flow.Graph.adj @@ tnode c)
+       ~f:(fun e -> Flow.Graph.eq (e, tnode a)));
+
+  [%test_eq: bool] true
+    (List.exists
+       (Flow.Graph.adj @@ tnode c)
+       ~f:(fun e -> Flow.Graph.eq (e, tnode b)));
+  [%test_eq: bool] false
+    (List.exists
+       (Flow.Graph.adj @@ tnode a)
+       ~f:(fun e -> Flow.Graph.eq (e, tnode b)))

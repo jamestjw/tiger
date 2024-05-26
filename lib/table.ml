@@ -24,4 +24,5 @@ module IntMapTable (Key : KEY) = struct
   let look (t, k) = IntMap.find_opt (Key.getKey k) t
   let bindings = IntMap.bindings
   let map = IntMap.map
+  let fold = IntMap.fold
 end

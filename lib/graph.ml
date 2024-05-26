@@ -42,9 +42,9 @@ module Graph = struct
 
   let nodes g =
     let rec f i =
-      if isBogus (BatDynArray.get g i) then [] else (g, i) :: f (i + 1)
+      if isBogus (BatDynArray.get g i) then [] else (g, i) :: f (i - 1)
     in
-    f 0
+    f @@ (BatDynArray.length g - 1)
 
   let succ (g, i) =
     let (NODE { succ = s; _ }) = BatDynArray.get g i in
@@ -61,6 +61,8 @@ module Graph = struct
     let i = BatDynArray.length g in
     BatDynArray.add g emptyNode;
     (g, i)
+
+  let numNodes g = BatDynArray.length g - 1
 
   exception GraphEdge
 
@@ -84,7 +86,10 @@ module Graph = struct
     let (NODE { succ = sj; pred = pj }) = BatDynArray.get g j in
     BatDynArray.set g j (NODE { succ = sj; pred = change (i, pj) })
 
-  let mk_edge = diddle_edge (fun (x, l) -> x :: l)
+  let mk_edge =
+    diddle_edge (fun (x, l) ->
+        if List.exists l ~f:(fun e -> x = e) then l else x :: l)
+
   let rm_edge = diddle_edge delete
   let nodename (_g, i) = "n" ^ Int.to_string i
 

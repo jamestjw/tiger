@@ -25,4 +25,7 @@ module Flow = struct
            Graph.Table.look(def,node) = SOME(def-list)
            Graph.Table.look(use,node) = SOME(use-list)
   *)
+
+  let table_get_list (tbl : 'a list Graph.Table.tbl) (node : Graph.node) =
+    Graph.Table.look (tbl, node) |> Option.value ~default:[]
 end
