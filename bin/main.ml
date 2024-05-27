@@ -13,7 +13,7 @@ let output_file = ref ""
 let usage_msg = "tiger -o output-file input-file"
 
 let speclist =
-  [ ("-o", Caml.Arg.Set_string output_file, "Set output file name") ]
+  [ ("-o", Stdlib.Arg.Set_string output_file, "Set output file name") ]
 
 let add_input_file fn = input_file := fn
 
@@ -24,7 +24,7 @@ let generateFunctionStm stm frame =
   let stm' = canonize stm in
   let instrs =
     Frame.procEntryExit2
-      (frame, Caml.List.flatten (List.map ~f:(RiscVGen.codegen frame) stm'))
+      (frame, Stdlib.List.flatten (List.map ~f:(RiscVGen.codegen frame) stm'))
   in
   let data = Frame.procEntryExit3 (frame, instrs) in
   Printf.sprintf "%s\n%s\n%s\n" data.prolog
@@ -40,13 +40,13 @@ let generateFrag = function
 
 (* TODO: Use a more reliable library to handle this *)
 let main () =
-  Caml.Arg.parse speclist add_input_file usage_msg;
+  Stdlib.Arg.parse speclist add_input_file usage_msg;
   if String.(!input_file = "") then (
     Stdio.print_string "Error: Missing input file\n";
-    Caml.exit 1);
+    Stdlib.exit 1);
   if String.(!output_file = "") then (
     Stdio.print_string "Error: Missing output file\n";
-    Caml.exit 1);
+    Stdlib.exit 1);
 
   let absyn = Parser.parse_file !input_file in
   let exp, frags =
@@ -63,7 +63,7 @@ let main () =
   let outc =
     Stdio.Out_channel.create !output_file ~append:false ~fail_if_exists:false
   in
-  List.iter ~f:(fun instr -> Caml.Printf.fprintf outc "%s" instr) instrs;
+  List.iter ~f:(fun instr -> Stdlib.Printf.fprintf outc "%s" instr) instrs;
   Stdio.Out_channel.close outc
 
 let () = main ()

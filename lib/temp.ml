@@ -28,7 +28,7 @@ module type TEMP = sig
   val look : 'a tbl * temp -> 'a option
   val reset : unit -> unit
 
-  module Set : Caml.Set.S
+  module Set : Stdlib.Set.S
 end
 
 module Temp = struct
@@ -63,10 +63,10 @@ module Temp = struct
   let label_to_string = Symbol.name
 
   (* Map that has an Int key (i.e. same type as temp) and 'a value *)
-  module IntMap = Caml.Map.Make (Int)
+  module IntMap = Stdlib.Map.Make (Int)
 
   (* Set of temporaries *)
-  module Set = Caml.Set.Make (Int)
+  module Set = Stdlib.Set.Make (Int)
 
   type 'a tbl = 'a IntMap.t
 

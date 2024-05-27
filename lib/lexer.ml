@@ -232,8 +232,9 @@ let%expect_test "successfully_parse_test_files" =
   ErrorMsg.reset ();
   ignore
     (let test_dir = "../../../tests/" in
-     Caml.Sys.readdir test_dir |> Array.to_list
-     |> List.filter ~f:(fun x -> String.(Caml.Filename.extension x = ".tig"))
+     Stdlib.Sys.readdir test_dir
+     |> Array.to_list
+     |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
      |> List.map ~f:(fun fname ->
             parse
               (Lexing.from_channel (Stdio.In_channel.create (test_dir ^ fname)))));

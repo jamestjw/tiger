@@ -14,7 +14,7 @@ module type KEY = sig
 end
 
 module IntMapTable (Key : KEY) = struct
-  module IntMap = Caml.Map.Make (Int)
+  module IntMap = Map.Make (Int)
 
   type 'a tbl = 'a IntMap.t
   type key = Key.t

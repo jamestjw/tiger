@@ -28,7 +28,7 @@ module Symbol = struct
   let compare_symbol s1 s2 = String.compare (name s1) (name s2)
 
   (* Map that has an Int key and 'a value *)
-  module IntMap = Caml.Map.Make (Int)
+  module IntMap = Stdlib.Map.Make (Int)
 
   type 'a tbl = 'a IntMap.t
 
