@@ -54,7 +54,9 @@ module Graph = struct
     let (NODE { pred = p; _ }) = BatDynArray.get g i in
     List.map ~f:(augment g) p
 
-  let adj gi = pred gi @ succ gi
+  let adj gi =
+    pred gi @ succ gi
+    |> List.dedup_and_sort ~compare:(fun (_, a) (_, b) -> compare a b)
 
   let newNode g =
     (* Append node at the end *)
