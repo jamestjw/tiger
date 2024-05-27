@@ -384,7 +384,9 @@ module RiscVGen : CODEGEN = struct
     in
     let exp, _ = Semant.transProg (Parser.parse_string input_string) in
     let stm = canonize (Translate.unNx exp) in
-    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let res =
+      Stdlib.List.flatten (List.map ~f:(fun s -> codegen frame s) stm)
+    in
     let expected =
       [
         "L51:\n";
@@ -431,7 +433,9 @@ module RiscVGen : CODEGEN = struct
     in
     let exp, _ = Semant.transProg (Parser.parse_string input_string) in
     let stm = canonize (Translate.unNx exp) in
-    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let res =
+      Stdlib.List.flatten (List.map ~f:(fun s -> codegen frame s) stm)
+    in
     let expected =
       [
         "L54:\n";
@@ -469,7 +473,9 @@ module RiscVGen : CODEGEN = struct
     |} in
     let exp, _ = Semant.transProg (Parser.parse_string input_string) in
     let stm = canonize (Translate.unNx exp) in
-    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let res =
+      Stdlib.List.flatten (List.map ~f:(fun s -> codegen frame s) stm)
+    in
     let expected =
       [
         "L54:\n";
@@ -521,7 +527,9 @@ module RiscVGen : CODEGEN = struct
     in
     let exp, _ = Semant.transProg (Parser.parse_string input_string) in
     let stm = canonize (Translate.unNx exp) in
-    let res = Caml.List.flatten (List.map ~f:(fun s -> codegen frame s) stm) in
+    let res =
+      Stdlib.List.flatten (List.map ~f:(fun s -> codegen frame s) stm)
+    in
     let expected =
       [
         "L54:\n";

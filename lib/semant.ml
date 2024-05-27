@@ -633,8 +633,9 @@ let%test_unit "successfully_run_semant_on_test_files" =
   in
   let res =
     let test_dir = "../../../tests/" in
-    Caml.Sys.readdir test_dir |> Array.to_list
-    |> List.filter ~f:(fun x -> String.(Caml.Filename.extension x = ".tig"))
+    Stdlib.Sys.readdir test_dir
+    |> Array.to_list
+    |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
     |> List.map ~f:(fun fname ->
            do_file (test_dir ^ fname);
            !ErrorMsg.anyErrors)

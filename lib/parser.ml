@@ -9,7 +9,7 @@ exception Parse_error
 let parse lexbuf =
   let res =
     try Grammar.input Lexer.token lexbuf
-    with Caml.Parsing.Parse_error ->
+    with Stdlib.Parsing.Parse_error ->
       ErrorMsg.error lexbuf "Syntax error";
       raise Parse_error
   in
@@ -32,8 +32,9 @@ open Base
 let%expect_test "successfully_parse_test_files" =
   ignore
     (let test_dir = "../../../tests/" in
-     Caml.Sys.readdir test_dir |> Array.to_list
-     |> List.filter ~f:(fun x -> String.(Caml.Filename.extension x = ".tig"))
+     Stdlib.Sys.readdir test_dir
+     |> Array.to_list
+     |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
      |> List.map ~f:(fun fname -> parse_file (test_dir ^ fname)));
   [%expect]
 
