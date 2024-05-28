@@ -23,24 +23,23 @@ module type SEMANT = sig
   val transExp : venv * tenv * senv * Translate.level * A.exp -> expty
   val transDecs : venv * tenv * senv * Translate.level * A.dec list -> decty
   val transTy : tenv * A.ty -> Types.ty
-  val transProg : A.exp -> Translate.exp * Translate.frag list
+  val transProg : A.exp -> Translate.frag list
 end
 
 module Semant : SEMANT = struct
-  type venv = Env.enventry Symbol.tbl
-  type tenv = Types.ty Symbol.tbl
+  type venv = Env.enventry Symbol.tbl (* Value environment *)
+  type tenv = Types.ty Symbol.tbl (* Type environment *)
   type expty = { exp : Translate.exp; ty : Types.ty }
 
   type senv = {
     break : Temp.label option (* Label of the closest enclosing loop *);
-    num_locals : int;
   }
 
   type decty = {
     venv : venv;
     tenv : tenv;
     senv : senv;
-    inits : Translate.exp list;
+    inits : Translate.exp list; (* Result of evaluating each declaration *)
   }
 
   exception Internal_error
@@ -56,7 +55,7 @@ module Semant : SEMANT = struct
 
   module StringSet = Set.Make (String)
 
-  let base_senv = { break = None; num_locals = 0 }
+  let base_senv = { break = None }
 
   let symbol_to_type s tenv pos =
     match Symbol.look (tenv, s) with
@@ -261,7 +260,7 @@ module Semant : SEMANT = struct
               A.exp_pos test,
               "while statement condition must be an INT" );
           let end_label = Temp.new_label () in
-          let senv' = { senv with break = Some end_label } in
+          let senv' = { break = Some end_label } in
           let body_expty = transExp (venv, tenv, senv', level, body) in
           check_type
             ( Types.NIL,
@@ -285,9 +284,7 @@ module Semant : SEMANT = struct
               hi_expty,
               A.exp_pos hi,
               "for loop end variable must be an INT" );
-          let loop_counter_access =
-            Translate.alloc_local level !escape senv.num_locals
-          in
+          let loop_counter_access = Translate.alloc_local level !escape in
           let venv' =
             Symbol.enter
               ( venv,
@@ -295,7 +292,7 @@ module Semant : SEMANT = struct
                 E.VarEntry { ty = Types.INT; access = loop_counter_access } )
           in
           let end_label = Temp.new_label () in
-          let senv' = { senv with break = Some end_label } in
+          let senv' = { break = Some end_label } in
           let body_expty = transExp (venv', tenv, senv', level, body) in
           check_type
             ( Types.NIL,
@@ -441,7 +438,7 @@ module Semant : SEMANT = struct
           Translate.new_level
             {
               parent = level;
-              name = Temp.new_label ();
+              name = label;
               formals = List.map (fun (f : A.field) -> !(f.escape)) params;
             }
         in
@@ -502,9 +499,7 @@ module Semant : SEMANT = struct
               in
               List.fold_left2 do_param venv params (Translate.formals level')
             in
-            (* Reset locals now that we are in new scope *)
-            let senv' = { senv with num_locals = 0 } in
-            let body_expty = transExp (venv', tenv, senv', level', body) in
+            let body_expty = transExp (venv', tenv, senv, level', body) in
             let res_type = actual_ty result in
             if not (Types.equals (res_type, body_expty.ty)) then
               ErrorMsg.error_pos (A.exp_pos body)
@@ -518,7 +513,7 @@ module Semant : SEMANT = struct
         { venv; tenv; senv; inits = [] }
     | A.VarDec { name; typ = None; init; escape; _ } ->
         let init_expty = transExp (venv, tenv, senv, level, init) in
-        let var_access = Translate.alloc_local level !escape senv.num_locals in
+        let var_access = Translate.alloc_local level !escape in
         {
           venv =
             S.enter
@@ -526,7 +521,7 @@ module Semant : SEMANT = struct
                 name,
                 E.VarEntry { ty = init_expty.ty; access = var_access } );
           tenv;
-          senv = { senv with num_locals = senv.num_locals + 1 };
+          senv;
           inits =
             [
               Translate.assignExp
@@ -545,7 +540,7 @@ module Semant : SEMANT = struct
         | None ->
             ErrorMsg.error_pos t_pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t)));
-        let var_access = Translate.alloc_local level !escape senv.num_locals in
+        let var_access = Translate.alloc_local level !escape in
         {
           venv =
             S.enter
@@ -553,7 +548,7 @@ module Semant : SEMANT = struct
                 name,
                 E.VarEntry { ty = init_expty.ty; access = var_access } );
           tenv;
-          senv = { senv with num_locals = senv.num_locals + 1 };
+          senv;
           inits =
             [
               Translate.assignExp
@@ -612,12 +607,21 @@ module Semant : SEMANT = struct
             Types.ARRAY (Types.INT, ref ()))
 
   let transProg exp =
+    Temp.reset ();
     Translate.init ();
-    let res_expty =
-      transExp (E.base_venv, E.base_tenv, base_senv, Translate.outermost, exp)
+    let main_level =
+      Translate.new_level
+        {
+          name = Temp.named_label "main";
+          parent = Translate.outermost;
+          formals = [];
+        }
     in
-    if !ErrorMsg.anyErrors then raise Semantic_error
-    else (res_expty.exp, Translate.getResult ())
+    let res_expty =
+      transExp (E.base_venv, E.base_tenv, base_senv, main_level, exp)
+    in
+    Translate.procEntryExit (res_expty.exp, main_level);
+    if !ErrorMsg.anyErrors then raise Semantic_error else Translate.getResult ()
 end
 
 (* Tests *)

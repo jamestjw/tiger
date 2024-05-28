@@ -89,4 +89,25 @@ module Tree = struct
     | GT -> LE
     | LE -> GT
     | GE -> LT
+
+  let max_call_param_count stm =
+    let rec exp_helper exp =
+      match exp with
+      | BINOP (_, e1, e2) -> Int.max (exp_helper e1) (exp_helper e2)
+      | MEM e -> exp_helper e
+      | CALL (e, args) ->
+          List.map exp_helper (e :: args)
+          |> List.fold_left Int.max (List.length args)
+      | ESEQ (stm, exp) -> Int.max (stm_helper stm) (exp_helper exp)
+      | _ -> 0
+    and stm_helper stm =
+      match stm with
+      | MOVE (e1, e2) -> Int.max (exp_helper e1) (exp_helper e2)
+      | EXP e -> exp_helper e
+      | JUMP (e, _) -> exp_helper e
+      | CJUMP (_, e1, e2, _, _) -> Int.max (exp_helper e1) (exp_helper e2)
+      | SEQ (e1, e2) -> Int.max (stm_helper e1) (stm_helper e2)
+      | LABEL _ -> 0
+    in
+    stm_helper stm
 end

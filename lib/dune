@@ -1,9 +1,23 @@
 (library
  (name tiger)
- (libraries base stdio str batteries)
+ (libraries
+  base
+  core
+  stdio
+  str
+  batteries
+  expect_test_helpers_core
+  ppx_show.runtime)
  (inline_tests)
  (preprocess
-  (pps ppx_sexp_conv ppx_compare ppx_inline_test ppx_assert ppx_expect)))
+  (pps
+   ppx_sexp_conv
+   ppx_compare
+   ppx_inline_test
+   ppx_assert
+   ppx_expect
+   ppx_here
+   ppx_show)))
 
 (env
  (dev

@@ -37,6 +37,7 @@ module type CANON = sig
             as possible are eliminated by falling through into T.LABEL(lab).
   *)
   val traceSchedule : Tree.stm list list * Temp.label -> Tree.stm list
+  val canonize : Tree.stm -> Tree.stm list
 end
 
 module Canon : CANON = struct
@@ -283,4 +284,6 @@ module Canon : CANON = struct
     (* TODO: Why fold_right? *)
     getnext (List.fold_right enterblock blocks Symbol.empty, blocks)
     @ [ T.LABEL done_label ]
+
+  let canonize stm = linearize stm |> basicBlocks |> traceSchedule
 end

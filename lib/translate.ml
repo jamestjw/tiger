@@ -76,7 +76,8 @@ module Translate = struct
   let outermost =
     {
       depth = 0;
-      frame = Frame.new_frame { name = Temp.named_label "main"; formals = [] };
+      frame =
+        Frame.new_frame { name = Temp.named_label "outermost"; formals = [] };
       unique = ref ();
       parent = None;
     }
@@ -97,7 +98,7 @@ module Translate = struct
       (List.tl (Frame.formals l.frame))
 
   let static_link l = List.hd (Frame.formals l.frame)
-  let alloc_local l escape local_num = (l, Frame.alloc_local escape local_num)
+  let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
 
@@ -380,13 +381,12 @@ module Translate = struct
 
   let intExp i = Ex (T.CONST i)
 
-  let procEntryExit (exp, lvl) =
+  let procEntryExit (exp, { frame; _ }) =
     let body_with_return = T.MOVE (T.TEMP Frame.rv, unEx exp) in
-    let body_with_lable =
-      T.SEQ (T.LABEL (Frame.name lvl.frame), body_with_return)
-    in
-    let processed_body = Frame.procEntryExit1 (lvl.frame, body_with_lable) in
-    let frag = Frame.PROC { frame = lvl.frame; body = processed_body } in
+    let processed_body = Frame.procEntryExit1 (frame, body_with_return) in
+    (* TODO: This labelling should be moved to procEntryExit2 *)
+    (* let processed_body = T.SEQ (T.LABEL (Frame.name frame), processed_body) in *)
+    let frag = Frame.PROC { frame; body = processed_body } in
     frags := frag :: !frags;
     ()
 

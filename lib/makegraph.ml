@@ -9,57 +9,129 @@ module MakeGraph = struct
      corresponds exactly to the instructions *)
   let instrs2graph instrs : Flow.flowgraph * Flow.Graph.node list =
     let graph = Flow.Graph.newGraph () in
-    let handle_instr instr (def_tbl, use_tbl, move_tbl, label2node) =
-      let newNode = Flow.Graph.newNode graph in
-      ( (match instr with
-        | Assem.OPER { assem; dst; src; jump } ->
-            (match jump with
+    let handle_instr instr
+        (prev_node, def_tbl, use_tbl, move_tbl, label2node, undefined_labels) =
+      match instr with
+      | Assem.OPER { assem; dst; src; jump } ->
+          let newNode = Flow.Graph.newNode graph in
+          (* Repetition of this `match` is pretty ugly *)
+          (match prev_node with
+          | Some prev -> Flow.Graph.mk_edge { src = prev; dst = newNode }
+          | _ -> ());
+          (* `next_node` so that the next instruction that we fall through to
+             is aware that this node is its predecessor. *)
+          let next_node, (label2node, undefined_labels) =
+            match jump with
             | Some symbols ->
-                List.iter
-                  (fun symbol ->
-                    match Symbol.look (label2node, symbol) with
-                    | Some node ->
-                        Flow.Graph.mk_edge { src = newNode; dst = node }
-                    | None -> ErrorMsg.impossible "Jumping to an unknown label")
-                  symbols
-            | None -> ());
-            ( Flow.Graph.Table.enter (def_tbl, newNode, dst),
-              Flow.Graph.Table.enter (use_tbl, newNode, src),
-              Flow.Graph.Table.enter (move_tbl, newNode, false),
-              label2node )
-        | Assem.LABEL { assem; lab } ->
-            ( Flow.Graph.Table.enter (def_tbl, newNode, []),
-              Flow.Graph.Table.enter (use_tbl, newNode, []),
-              Flow.Graph.Table.enter (move_tbl, newNode, false),
-              Symbol.enter (label2node, lab, newNode) )
-        | Assem.MOVE { assem; dst; src } ->
-            ( Flow.Graph.Table.enter (def_tbl, newNode, [ dst ]),
-              Flow.Graph.Table.enter (use_tbl, newNode, [ src ]),
-              Flow.Graph.Table.enter (move_tbl, newNode, true),
-              label2node )),
-        newNode )
+                (* If this is a jump, then we don't want to fall through. Hence,
+                   we return `None`. *)
+                ( None,
+                  List.fold_left
+                    (fun (label2node, undefined_labels) symbol ->
+                      match Symbol.look (label2node, symbol) with
+                      | Some node ->
+                          Flow.Graph.mk_edge { src = newNode; dst = node };
+                          (label2node, undefined_labels)
+                      | None ->
+                          (* If the node is not in the graph yet, create
+                             it on the fly and insert it to the table. *)
+                          let destNode = Flow.Graph.newNode graph in
+                          Flow.Graph.mk_edge { src = newNode; dst = destNode };
+                          ( Symbol.enter (label2node, symbol, destNode),
+                            symbol :: undefined_labels ))
+                    (label2node, undefined_labels)
+                    symbols )
+            | None -> (Some newNode, (label2node, undefined_labels))
+          in
+          ( next_node,
+            Flow.Graph.Table.enter (def_tbl, newNode, dst),
+            Flow.Graph.Table.enter (use_tbl, newNode, src),
+            Flow.Graph.Table.enter (move_tbl, newNode, false),
+            label2node,
+            newNode,
+            undefined_labels )
+      | Assem.LABEL { assem; lab } ->
+          (* Maybe the node has been created by a prior jump, hence we
+             look it up. *)
+          let node, undefined_labels =
+            match Symbol.look (label2node, lab) with
+            | Some node ->
+                (* Since we are defining it here, remove it from the
+                   list of undefined labels. *)
+                ( node,
+                  List.filter
+                    (fun e -> not @@ Symbol.equal_symbol e lab)
+                    undefined_labels )
+            | None -> (Flow.Graph.newNode graph, undefined_labels)
+          in
+          (match prev_node with
+          | Some prev -> Flow.Graph.mk_edge { src = prev; dst = node }
+          | _ -> ());
+          ( Some node,
+            Flow.Graph.Table.enter (def_tbl, node, []),
+            Flow.Graph.Table.enter (use_tbl, node, []),
+            Flow.Graph.Table.enter (move_tbl, node, false),
+            Symbol.enter (label2node, lab, node),
+            node,
+            undefined_labels )
+      | Assem.MOVE { assem; dst; src } ->
+          let newNode = Flow.Graph.newNode graph in
+          (match prev_node with
+          | Some prev -> Flow.Graph.mk_edge { src = prev; dst = newNode }
+          | _ -> ());
+          ( Some newNode,
+            Flow.Graph.Table.enter (def_tbl, newNode, [ dst ]),
+            Flow.Graph.Table.enter (use_tbl, newNode, [ src ]),
+            Flow.Graph.Table.enter (move_tbl, newNode, true),
+            label2node,
+            newNode,
+            undefined_labels )
     in
 
-    let nodes, def_tbl, use_tbl, move_tbl, _ =
+    let _, nodes, def_tbl, use_tbl, move_tbl, _, undefined_labels =
       List.fold_left
-        (fun (l, dtbl, utbl, mtbl, label2node) instr ->
-          let (dtbl', utbl', mtbl', label2node'), l' =
-            handle_instr instr (dtbl, utbl, mtbl, label2node)
+        (fun (prev_node, l, dtbl, utbl, mtbl, label2node, undefined_labels)
+             instr ->
+          let prev_node, dtbl', utbl', mtbl', label2node', l', undefined_labels
+              =
+            handle_instr instr
+              (prev_node, dtbl, utbl, mtbl, label2node, undefined_labels)
           in
-          (l' :: l, dtbl', utbl', mtbl', label2node'))
-        ( [],
+          ( prev_node,
+            l' :: l,
+            dtbl',
+            utbl',
+            mtbl',
+            label2node',
+            undefined_labels ))
+        ( None,
+          [],
           Flow.Graph.Table.empty,
           Flow.Graph.Table.empty,
           Flow.Graph.Table.empty,
-          Symbol.empty )
-        (* We want to process from the back *)
-        (List.rev instrs)
+          Symbol.empty,
+          [] )
+        instrs
+      (* We want to process from the back *)
+      (* (List.rev instrs) *)
     in
-    let fg =
-      Flow.FGRAPH
-        { control = graph; def = def_tbl; use = use_tbl; ismove = move_tbl }
-    in
-    (fg, nodes)
+    match undefined_labels with
+    | [] ->
+        (* There should be no undefined labels! *)
+        let fg =
+          Flow.FGRAPH
+            { control = graph; def = def_tbl; use = use_tbl; ismove = move_tbl }
+        in
+        (fg, nodes)
+    | l :: ls ->
+        let label_string =
+          List.fold_left
+            (fun acc sym -> acc ^ ", " ^ Symbol.name sym)
+            (Symbol.name l) ls
+        in
+        (* Since these labels are compiler generated, this shouldn't happen.
+           If it does, then it should be a compiler bug. *)
+        ErrorMsg.impossible @@ "Jumped to undefined label(s): " ^ label_string
 end
 
 open Base
@@ -67,7 +139,7 @@ open Temp
 
 let%test_unit "make_graph_simple_block" =
   (* Based on tests/test1.tig *)
-  let l0 = Temp.new_label () in
+  let l0 = Temp.named_label "l0" in
   let t130 = Temp.new_temp () in
   let t131 = Temp.new_temp () in
   let t132 = Temp.new_temp () in
@@ -100,8 +172,36 @@ let%test_unit "make_graph_simple_block" =
   let flowgraph, nodes =
     MakeGraph.instrs2graph (List.map ~f:(fun (instr, _) -> instr) instrs)
   in
+  Flow.show flowgraph;
   List.iter2_exn nodes instrs ~f:(fun node (instr, ismove) ->
       [%test_eq: bool]
         (let (Flow.FGRAPH { ismove = ismove_tbl; _ }) = flowgraph in
          Option.value_exn (Flow.Graph.Table.look (ismove_tbl, node)))
         ismove)
+
+let%test_unit "make_graph_jump_before_label_definition" =
+  (* I have the jump instruction defined 'before' the label, and this should work
+     anyway. *)
+  let l1 = Temp.named_label "L1" in
+  let instrs =
+    [
+      Assem.LABEL { assem = "L1:\n"; lab = l1 };
+      Assem.OPER { assem = "j L1\n"; dst = []; src = []; jump = Some [ l1 ] };
+    ]
+  in
+  let _ = MakeGraph.instrs2graph instrs in
+  ()
+
+let%expect_test "make_graph_jump_to_undefined_label" =
+  let open Expect_test_helpers_base in
+  (* I have the jump instruction defined 'before' the label, and this should work
+     anyway. *)
+  let l1 = Temp.named_label "L1" in
+  let instrs =
+    [ Assem.OPER { assem = "j L1\n"; dst = []; src = []; jump = Some [ l1 ] } ]
+  in
+  require_does_raise [%here] (fun () -> MakeGraph.instrs2graph instrs);
+  [%expect
+    {|
+    Error: Compiler bug: Jumped to undefined label(s): L1
+    (Tiger.Errormsg.ErrorMsg.Error) |}]
