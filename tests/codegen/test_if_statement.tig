@@ -1,0 +1,8 @@
+/* test_if_statement */
+let 
+  var x := 8
+  var y := 10
+in 
+  if x < y then 20 else 30
+end
+

@@ -92,13 +92,31 @@ module Graph = struct
     diddle_edge (fun (x, l) ->
         if List.exists l ~f:(fun e -> x = e) then l else x :: l)
 
+  let mk_undirected_edge (u, v) =
+    mk_edge { src = u; dst = v };
+    mk_edge { src = v; dst = u }
+
   let rm_edge = diddle_edge delete
+
+  let all_edges g =
+    List.fold_left (nodes g) ~init:[] ~f:(fun acc node ->
+        List.map (succ node) ~f:(fun e' -> (node, e'))
+        @ List.map (pred node) ~f:(fun e' -> (e', node))
+        @ acc)
+    |> List.dedup_and_sort ~compare:Poly.compare
+
   let nodename (_g, i) = "n" ^ Int.to_string i
 
   module Table = Table.IntMapTable (struct
     type t = node
 
     let getKey (_, i) = i
+  end)
+
+  module NodeSet = Stdlib.Set.Make (struct
+    type t = node
+
+    let compare (_, u) (_, v) = compare u v
   end)
 end
 

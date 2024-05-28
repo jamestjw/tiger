@@ -3,8 +3,8 @@ open Base
 
 module Assem = struct
   type reg = string
-  type temp = Temp.temp [@@deriving compare, sexp]
-  type label = Temp.label [@@deriving compare, sexp]
+  type temp = Temp.temp [@@deriving compare, sexp, show]
+  type label = Temp.label [@@deriving compare, sexp, show]
 
   type instr =
     | OPER of {
@@ -15,7 +15,7 @@ module Assem = struct
       }
     | LABEL of { assem : string; lab : Temp.label }
     | MOVE of { assem : string; dst : temp; src : temp }
-  [@@deriving compare, sexp]
+  [@@deriving compare, sexp, show]
 
   let label_to_string = Temp.label_to_string
 

@@ -30,7 +30,22 @@ module Liveness = struct
   (* Pretty print the graph:
      Print list of nodes in the interference graph, and for each node,
      a list of nodes adjacent to it *)
-  let show (g : igraph) : unit = failwith "not implemented"
+  let show (IGRAPH { graph; tnode; gtemp; _ }) : unit =
+    let do_node node =
+      let temp = gtemp node in
+      let adjacents = IGraph.adj node in
+      Stdio.printf "%s (%s) (%d adjacent nodes):\n" (IGraph.nodename node)
+        (Frame.Frame.register_to_string_default temp)
+        (List.length adjacents);
+
+      Stdio.printf "\t- %s\n"
+        (String.concat " "
+           (List.map
+              (fun e -> gtemp e |> Frame.Frame.register_to_string_default)
+              adjacents))
+    in
+    Stdio.print_endline "-- Interference Graph --";
+    List.iter do_node (IGraph.nodes graph)
 
   let mkLiveMap (g : Flow.flowgraph) : liveMap =
     let (FGRAPH { control; def; use; ismove }) = g in
@@ -85,6 +100,8 @@ module Liveness = struct
         (temp_tbl, temp_list))
       in_out_tbl
 
+  (* Returns an interference graph along with a function that returns
+     all the temporaries that are live out of a node in the flowgraph. *)
   let mk_interference_graph (fg : Flow.flowgraph) :
       igraph * (Flow.Graph.node -> Temp.temp list) =
     let (FGRAPH { control; def; use; ismove }) = fg in
@@ -114,32 +131,44 @@ module Liveness = struct
       |> Option.fold ~none:[] ~some:(fun (_, l) -> l)
     in
 
+    (* The livemap is correct, so its the graph below thats wrong *)
+    List.iter
+      (fun n ->
+        Printf.printf "Node %s Liveout : %s \n" (Flow.Graph.nodename n)
+          (String.concat " "
+             (live_out_fn n |> List.map Frame.Frame.register_to_string_default));
+        Printf.printf "Defined: %s\n"
+          (String.concat " "
+             (Flow.Graph.Table.look_exn (def, n)
+             |> List.map Frame.Frame.register_to_string_default)))
+      (Flow.Graph.nodes control);
+
     let graph, tnode_tbl, gtemp_tbl, move_list =
       List.fold_left
         (fun (g, tn, gt, ml) node ->
           let live_temps = live_out_fn node in
           let defined_nodes, g, tn, gt = get_nodes (g, tn, gt) node def in
           let used_nodes, g, tn, gt = get_nodes (g, tn, gt) node use in
+          let used_temps = Flow.table_get_list use node in
 
           let is_move =
             Flow.Graph.Table.look (ismove, node) |> Option.value ~default:false
           in
           List.fold_left
             (fun (g, tn, gt, ml) def_node ->
-              let g, tn, gt, ml =
+              let g, tn, gt =
                 List.fold_left
-                  (fun (g, tn, gt, ml) live_temp ->
+                  (fun (g, tn, gt) live_temp ->
                     let live_node, g, tn, gt = get_node (g, tn, gt) live_temp in
                     if
-                      (not is_move)
-                      || not
-                         @@ List.exists
-                              (fun e -> IGraph.eq (e, live_node))
-                              used_nodes
-                    then IGraph.mk_edge { src = def_node; dst = live_node };
-                    IGraph.mk_edge { src = live_node; dst = def_node };
-                    (g, tn, gt, ml))
-                  (g, tn, gt, ml) live_temps
+                      (* We don't need to include the information that says that
+                         a node interferes with itself. *)
+                      not @@ IGraph.eq (def_node, live_node)
+                    then
+                      if (not is_move) || (not @@ List.mem live_temp used_temps)
+                      then IGraph.mk_undirected_edge (def_node, live_node);
+                    (g, tn, gt))
+                  (g, tn, gt) live_temps
               in
               let ml =
                 if is_move then
@@ -154,6 +183,18 @@ module Liveness = struct
         (Flow.Graph.nodes control)
     in
 
+    Printf.printf "Length of gtemp: %d, tnode: %d, numnodes: %d\n"
+      (List.length (IGraph.Table.bindings gtemp_tbl))
+      (List.length (Temp.IntMap.bindings tnode_tbl))
+      (List.length (IGraph.nodes graph));
+
+    assert (
+      List.length (IGraph.nodes graph)
+      = List.length (IGraph.Table.bindings gtemp_tbl));
+    assert (
+      List.length (IGraph.nodes graph)
+      = List.length (Temp.IntMap.bindings tnode_tbl));
+
     ( IGRAPH
         {
           graph;
@@ -163,6 +204,24 @@ module Liveness = struct
           moves = move_list;
         },
       live_out_fn )
+
+  (* Return adjacency set of the interference graph.
+     If (u,v) in adj_set then (v, u) in adj_set *)
+  let adj_set (IGRAPH { graph; gtemp; _ }) =
+    IGraph.all_edges graph |> List.map (fun (e1, e2) -> (gtemp e1, gtemp e2))
+
+  (* Given an interference graph, returns a list of temporaries that it
+     interferes with. *)
+  let adj_list (IGRAPH { graph; tnode; gtemp; _ }) (temp : Temp.temp) :
+      Temp.temp list =
+    IGraph.adj @@ tnode temp |> List.map gtemp
+
+  (* Given an interference graph, return the degree of a certain temporary,
+     i.e. how many other temporaries it interferes with. *)
+  let degree (ig : igraph) (t : Temp.temp) =
+    let (IGRAPH { graph; tnode; _ }) = ig in
+    (* Relies on the fact that the adjacent list contains no duplicates *)
+    List.length @@ IGraph.adj (tnode t)
 end
 
 let%test_unit "interference_graph_simple_block" =
@@ -239,9 +298,10 @@ let%test_unit "interference_graph_simple_block" =
       ]
   in
   let flowgraph = Flow.FGRAPH { control = graph; def; use; ismove } in
-  let IGRAPH { graph; tnode; gtemp; moves }, live_out_fn =
+  let (IGRAPH { graph; tnode; gtemp; moves } as igraph), live_out_fn =
     Liveness.mk_interference_graph flowgraph
   in
+  Liveness.show igraph;
   let open Base in
   [%test_eq: bool] true
     (List.exists

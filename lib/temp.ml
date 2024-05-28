@@ -8,6 +8,7 @@ module type TEMP = sig
   (* Returns a new temporary from an infinite set of temps *)
   val new_temp : unit -> temp
   val make_string : temp -> string
+  val eq : temp -> temp -> bool
 
   (* Abstract names for static memory addresses *)
   type label [@@deriving compare, sexp]
@@ -33,7 +34,7 @@ end
 
 module Temp = struct
   (* Abstract names for local variables *)
-  type temp = int [@@deriving compare, sexp]
+  type temp = int [@@deriving compare, sexp, show]
 
   let temps = ref 100
 
@@ -44,8 +45,9 @@ module Temp = struct
     t
 
   let make_string t = "t" ^ Int.to_string t
+  let eq = ( = )
 
-  type label = Symbol.symbol [@@deriving compare, sexp]
+  type label = Symbol.symbol [@@deriving compare, sexp, show]
 
   let postinc x =
     let i = !x in
@@ -68,14 +70,27 @@ module Temp = struct
   (* Set of temporaries *)
   module Set = Stdlib.Set.Make (Int)
 
+  module PairSet = Stdlib.Set.Make (struct
+    type t = int * int
+
+    let compare = Poly.compare
+  end)
+
   type 'a tbl = 'a IntMap.t
 
   let empty = IntMap.empty
   let enter (t, temp, v) = IntMap.add temp v t
   let look (t, temp) = IntMap.find_opt temp t
 
+  let look_default (t, temp, default) =
+    IntMap.find_opt temp t |> Option.value ~default
+
+  exception Invalid_key
+
+  let look_exn e = match look e with Some v -> v | None -> raise Invalid_key
+
   let reset () =
     (* Just so that we have enough labels for initial stuff *)
-    labs := 50;
+    labs := 0;
     temps := 130
 end
