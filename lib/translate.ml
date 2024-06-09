@@ -61,16 +61,11 @@ module Translate = struct
     frame : Frame.frame;
     unique : unit ref;
     parent : level option;
+    (* To know if calling this function requires adding a static link *)
+    static : bool;
   }
 
   type access = level * Frame.access
-
-  type new_level_args = {
-    parent : level;
-    name : Temp.label;
-    formals : bool list;
-  }
-
   type frag = Frame.frag
 
   let outermost =
@@ -80,15 +75,17 @@ module Translate = struct
         Frame.new_frame { name = Temp.named_label "outermost"; formals = [] };
       unique = ref ();
       parent = None;
+      static = true;
     }
 
-  let new_level { name; parent; formals } =
+  let new_level ~name ~parent ~formals ~static =
     {
       depth = parent.depth + 1;
       (* Add an extra parameter that escapes to represent the static link *)
       frame = Frame.new_frame { name; formals = true :: formals };
       unique = ref ();
       parent = Some parent;
+      static;
     }
 
   let formals l =
@@ -178,6 +175,7 @@ module Translate = struct
             (binOpMul (T.CONST Frame.word_size) (unEx index_exp))))
 
   (* Assume that stdlib functions do not require a static link *)
+  (* TODO: Check this! We don't want to emit the extra argument here. *)
   let callStdlibExp (name, args) =
     Ex (T.CALL (T.NAME name, T.CONST 0 :: List.map unEx args))
 
@@ -323,8 +321,11 @@ module Translate = struct
     in
     Ex (do_one_level call_level (T.TEMP Frame.fp))
 
-  let callExp (name, args, fn_level, call_level) =
-    let call_args = findFunctionStaticLink (fn_level, call_level) :: args in
+  let callExp (name, args, ({ static; _ } as fn_level), call_level) =
+    let call_args =
+      if static then findFunctionStaticLink (fn_level, call_level) :: args
+      else args
+    in
     Ex (T.CALL (T.NAME name, List.map unEx call_args))
 
   let whileExp (test, body, end_label) =
