@@ -433,7 +433,7 @@ module Semant : SEMANT = struct
           (* If no return type is specified, then this is a procedure *)
           | _ -> Types.NIL
         in
-        let label = Temp.new_label () in
+        let label = Temp.label_from_suffix @@ Symbol.name name in
         let level' =
           Translate.new_level ~parent:level ~name:label
             ~formals:(List.map (fun (f : A.field) -> !(f.escape)) params)
