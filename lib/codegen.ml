@@ -217,17 +217,7 @@ module RiscVGen : CODEGEN = struct
                      dst = [ r ];
                      jump = None;
                    }))
-      | T.BINOP (T.PLUS, e1, T.CONST i) ->
-          result (fun r ->
-              emit
-                (A.OPER
-                   {
-                     assem = Printf.sprintf "\taddi 'd0, 's0, %d\n" i;
-                     src = [ munchExp e1 ];
-                     dst = [ r ];
-                     jump = None;
-                   }))
-      | T.BINOP (T.PLUS, T.CONST i, e1) ->
+      | T.BINOP (T.PLUS, e1, T.CONST i) | T.BINOP (T.PLUS, T.CONST i, e1) ->
           result (fun r ->
               emit
                 (A.OPER
@@ -253,6 +243,16 @@ module RiscVGen : CODEGEN = struct
                    {
                      assem = Printf.sprintf "\t%s 'd0, 's0, 's1\n" (opMap op);
                      src = [ munchExp e1; munchExp e2 ];
+                     dst = [ r ];
+                     jump = None;
+                   }))
+      | T.CONST 0 ->
+          result (fun r ->
+              emit
+                (A.OPER
+                   {
+                     assem = "\tmv 'd0, 's0\n";
+                     src = [ Frame.zero ];
                      dst = [ r ];
                      jump = None;
                    }))

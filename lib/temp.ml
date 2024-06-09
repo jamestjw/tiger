@@ -64,6 +64,10 @@ module Temp = struct
   let named_label = Symbol.to_symbol
   let label_to_string = Symbol.name
 
+  (* Returns a unique label ending with a suffix. *)
+  let label_from_suffix suffix =
+    Symbol.to_symbol (Printf.sprintf "L%d_%s" (postinc labs) suffix)
+
   (* Map that has an Int key (i.e. same type as temp) and 'a value *)
   module IntMap = Stdlib.Map.Make (Int)
 
