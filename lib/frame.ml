@@ -35,11 +35,13 @@ module type FRAME = sig
      1. Frame pointer
      2. Return value
      3. Return address
-     4. Stack pointer *)
+     4. Stack pointer
+     5. zero *)
   val fp : Temp.temp
   val rv : Temp.temp
   val ra : Temp.temp
   val sp : Temp.temp
+  val zero : Temp.temp
   val externalCall : string * Tree.exp list -> Tree.exp
 
   type register
@@ -213,6 +215,7 @@ module RiscVFrame : FRAME = struct
 
   (* Next available memory location on the stack *)
   let sp = Temp.new_temp ()
+  let zero = Temp.new_temp ()
 
   let exp a e =
     match a with
@@ -240,7 +243,7 @@ module RiscVFrame : FRAME = struct
   let special_regs =
     processRegisterList
       [
-        ("zero", Temp.new_temp ());
+        ("zero", zero);
         (* Stack pointer *)
         ("sp", sp);
         (* Return address *)

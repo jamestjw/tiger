@@ -385,8 +385,6 @@ module Translate = struct
   let procEntryExit (exp, { frame; _ }) =
     let body_with_return = T.MOVE (T.TEMP Frame.rv, unEx exp) in
     let processed_body = Frame.procEntryExit1 (frame, body_with_return) in
-    (* TODO: This labelling should be moved to procEntryExit2 *)
-    (* let processed_body = T.SEQ (T.LABEL (Frame.name frame), processed_body) in *)
     let frag = Frame.PROC { frame; body = processed_body } in
     frags := frag :: !frags;
     ()
