@@ -25,11 +25,8 @@ module RiscVGen : CODEGEN = struct
     let emit x = ilist := x :: !ilist in
     (* The callee has no obligation to preserve these registers. *)
     let calldefs =
-      [ Frame.ra; Frame.rv ] @ Frame.caller_saves
-      (* TODO: RegAlloc fails when I add this?! *)
-      @ Frame.arg_regs
-      |> Temp.Set.of_list |> Temp.Set.to_seq |> Stdlib.List.of_seq
-      (* |> List.dedup_and_sort ~compare:Temp.compare_temp *)
+      [ Frame.ra; Frame.rv ] @ Frame.caller_saves @ Frame.arg_regs
+      |> List.dedup_and_sort ~compare:Temp.compare_temp
     in
 
     let rec munchStm = function
@@ -42,10 +39,9 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.OPER
                {
-                 assem =
-                   Printf.sprintf "\taddi 'd0, 's0, %d\n\tsd 's1, 0('d0)\n" i;
+                 assem = Printf.sprintf "\tsd 's1, %d('s0)\n" i;
                  src = [ munchExp e1; munchExp e2 ];
-                 dst = [ Temp.new_temp () ];
+                 dst = [];
                  jump = None;
                })
       | T.MOVE (T.MEM e1, T.MEM e2) ->
@@ -195,9 +191,7 @@ module RiscVGen : CODEGEN = struct
                 (A.OPER
                    {
                      (* Dereference and store in a register *)
-                     assem =
-                       Printf.sprintf "\taddi 'd0, 's0, %d\n\tld 'd0, 0('d0)\n"
-                         i;
+                     assem = Printf.sprintf "\tld 'd0, %d('s0)\n" i;
                      src = [ munchExp e1 ];
                      dst = [ r ];
                      jump = None;
