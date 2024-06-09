@@ -435,12 +435,9 @@ module Semant : SEMANT = struct
         in
         let label = Temp.new_label () in
         let level' =
-          Translate.new_level
-            {
-              parent = level;
-              name = label;
-              formals = List.map (fun (f : A.field) -> !(f.escape)) params;
-            }
+          Translate.new_level ~parent:level ~name:label
+            ~formals:(List.map (fun (f : A.field) -> !(f.escape)) params)
+            ~static:true
         in
         {
           venv =
@@ -611,11 +608,8 @@ module Semant : SEMANT = struct
     Translate.init ();
     let main_level =
       Translate.new_level
-        {
-          name = Temp.named_label "main";
-          parent = Translate.outermost;
-          formals = [];
-        }
+        ~name:(Temp.named_label "tigermain")
+        ~parent:Translate.outermost ~formals:[] ~static:false
     in
     let res_expty =
       transExp (E.base_venv, E.base_tenv, base_senv, main_level, exp)

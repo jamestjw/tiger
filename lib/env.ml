@@ -26,6 +26,7 @@ module Env = struct
     let functions =
       [
         ("print", [ ("s", Types.STRING) ], Types.NIL);
+        ("printint", [ ("s", Types.INT) ], Types.NIL);
         ("flush", [], Types.NIL);
         ("getchar", [], Types.STRING);
         ("ord", [ ("s", Types.STRING) ], Types.INT);
@@ -50,12 +51,9 @@ module Env = struct
                 formals = List.map (fun (_, t) -> t) formals;
                 result = ret_type;
                 level =
-                  Translate.new_level
-                    {
-                      parent = Translate.outermost;
-                      formals = List.map (fun _ -> false) formals;
-                      name = label;
-                    };
+                  Translate.new_level ~parent:Translate.outermost
+                    ~formals:(List.map (fun _ -> false) formals)
+                    ~name:label ~static:false;
                 label;
               } ))
       Symbol.empty functions
