@@ -135,7 +135,7 @@ module RiscVGen : CODEGEN = struct
           emit
             (A.LABEL
                { assem = Printf.sprintf "%s:\n" (A.label_to_string lab); lab })
-      | T.CJUMP (op, e1, e2, t_label, _f_label) ->
+      | T.CJUMP (op, e1, e2, t_label, f_label) ->
           let branchOpMap = function
             | T.EQ -> "beq"
             | T.NE -> "bne"
@@ -168,14 +168,15 @@ module RiscVGen : CODEGEN = struct
                    dst = [ e2_temp ];
                    jump = None;
                  });
-          (* Since we expect the false label to follow a CJUMP, we can just fall-through to it *)
+          (* Although we fall through to the false label, we include the jump
+             destination here for future liveness analysis. *)
           emit
             (A.OPER
                {
                  assem = Printf.sprintf "\t%s 's0, 's1, 'j0\n" (branchOpMap op);
                  src = [ e1_temp; e2_temp ];
                  dst = [];
-                 jump = Some [ t_label ];
+                 jump = Some [ t_label; f_label ];
                })
     and munchExp exp =
       let result gen =
