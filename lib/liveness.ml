@@ -208,13 +208,22 @@ module Liveness = struct
   (* Return adjacency set of the interference graph.
      If (u,v) in adj_set then (v, u) in adj_set *)
   let adj_set (IGRAPH { graph; gtemp; _ }) =
-    IGraph.all_edges graph |> List.map (fun (e1, e2) -> (gtemp e1, gtemp e2))
+    IGraph.all_edges graph
+    |> List.map (fun (e1, e2) -> (gtemp e1, gtemp e2))
+    |> List.filter (fun (u, v) -> not (u = v))
+    |> Temp.PairSet.of_list
 
   (* Given an interference graph, returns a list of temporaries that it
      interferes with. *)
-  let adj_list (IGRAPH { graph; tnode; gtemp; _ }) (temp : Temp.temp) :
-      Temp.temp list =
-    IGraph.adj @@ tnode temp |> List.map gtemp
+  let adj_list (IGRAPH { graph; tnode; gtemp; _ } as igraph) :
+      Temp.Set.t Temp.tbl =
+    Temp.PairSet.fold
+      (fun (t1, t2) tbl ->
+        Temp.enter
+          ( tbl,
+            t1,
+            Temp.look_default (tbl, t1, Temp.Set.empty) |> Temp.Set.add t2 ))
+      (adj_set igraph) Temp.empty
 
   (* Given an interference graph, return the degree of a certain temporary,
      i.e. how many other temporaries it interferes with. *)

@@ -34,7 +34,7 @@ module Graph = struct
   let isBogus = function NODE { succ = -1 :: _; _ } -> true | _ -> false
 
   type graph = noderep BatDynArray.t
-  type node = graph * node'
+  type node = graph * node' 
 
   let eq ((_, a), (_, b)) = a = b
   let augment (g : graph) (n : node') : node = (g, n)
