@@ -81,27 +81,26 @@ module RegAlloc = struct
       List.iter instrs ~f:(fun i ->
           Stdio.print_string @@ Assem.format Frame.register_to_string_default i);
 
-      List.iter instrs ~f:(fun i ->
-          Stdio.print_endline @@ Assem.show_instr  i);
+      List.iter instrs ~f:(fun i -> Stdio.print_endline @@ Assem.show_instr i);
       let initial_allocation = Frame.get_temp_map () in
       let registers =
         Temp.IntMap.bindings initial_allocation |> List.map ~f:(fun (_, e) -> e)
       in
-      let allocation, spills, coalesced =
+      let allocation, spills =
         (* TODO: Use better spill cost *)
         Color.color instrs initial_allocation (fun _ -> 1) registers
       in
 
       if List.is_empty spills then
-        let coalesced_set = Temp.Set.of_list coalesced in
         let coalesced_instrs =
           List.filter instrs ~f:(fun instr ->
               match instr with
               | Assem.MOVE { dst; src; _ }
-                when Temp.Set.mem dst coalesced_set
-                     || Frame.register_eq
-                          (Temp.look_exn (allocation, src))
-                          (Temp.look_exn (allocation, dst)) ->
+              (* Every temporary should have been assigned a register, so
+                 we should be able to use `look_exn`. *)
+                when Frame.register_eq
+                       (Temp.look_exn (allocation, src))
+                       (Temp.look_exn (allocation, dst)) ->
                   false
               | _ -> true)
         in
