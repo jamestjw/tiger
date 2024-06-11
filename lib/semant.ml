@@ -136,61 +136,54 @@ module Semant : SEMANT = struct
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
           | Some t -> (
-              let t' = actual_ty t in
-              match t' with
+              let record_type = actual_ty t in
+              match record_type with
               | Types.RECORD (fields, _) ->
-                  let input_symbols =
-                    List.fold_left
-                      (fun acc (s, _, _) -> StringSet.add (Symbol.name s) acc)
-                      StringSet.empty input_fields
-                  in
-                  let required_symbols =
-                    List.fold_left
-                      (fun acc (s, _) -> StringSet.add (Symbol.name s) acc)
-                      StringSet.empty fields
-                  in
-                  if StringSet.equal input_symbols required_symbols then (
-                    let sorted_fields =
-                      List.map
-                        (fun (s, t) -> (s, actual_ty t))
-                        (List.sort
-                           (fun (s1, _) (s2, _) -> Symbol.compare_symbol s1 s2)
-                           fields)
-                    in
-                    let sorted_input_fields =
-                      List.map
-                        (fun (_, e, _) -> trexp e)
-                        (List.sort
-                           (fun (s1, _, _) (s2, _, _) ->
-                             Symbol.compare_symbol s1 s2)
-                           input_fields)
-                    in
-                    List.iter2
-                      (fun (s1, t1) t2 ->
-                        if not (Types.equals (t1, t2)) then
-                          ErrorMsg.error_pos pos
-                            (Printf.sprintf
-                               "type mismatch for field '%s', expected %s (got \
-                                %s)"
-                               (Symbol.name s1) (Types.to_string t1)
-                               (Types.to_string t2))
-                        else ())
-                      sorted_fields
-                      (List.map (fun x -> x.ty) sorted_input_fields);
-                    {
-                      exp =
-                        Translate.recordExp
-                          (List.map (fun x -> x.exp) sorted_input_fields);
-                      ty = t';
-                    })
-                  else (
+                  if List.length input_fields != List.length fields then (
                     ErrorMsg.error_pos pos
-                      "invalid fields in record initialisation";
-                    { exp = Translate.default_exp; ty = t' })
+                      (Printf.sprintf
+                         "record initialisation expected %d fields (got %d)"
+                         (List.length fields) (List.length input_fields));
+                    { exp = Translate.default_exp; ty = record_type })
+                  else
+                    let input_field_map =
+                      List.fold_left
+                        (fun tbl (sym, exp, _) -> S.enter (tbl, sym, exp))
+                        S.empty input_fields
+                    in
+                    let input_field_exps =
+                      List.fold_left
+                        (fun acc (sym, ty) ->
+                          match S.look (input_field_map, sym) with
+                          | Some e ->
+                              let { exp; ty = ty' } = trexp e in
+                              let ty = actual_ty ty in
+                              let ty' = actual_ty ty' in
+                              if not (Types.equals (ty, ty')) then
+                                ErrorMsg.error_pos pos
+                                  (Printf.sprintf
+                                     "type mismatch for field '%s', expected \
+                                      %s (got %s)"
+                                     (Symbol.name sym) (Types.to_string ty)
+                                     (Types.to_string ty'));
+                              exp :: acc
+                          | None ->
+                              ErrorMsg.error_pos pos
+                                (Printf.sprintf
+                                   "missing field '%s' in record initialisation"
+                                   (S.name sym));
+                              acc)
+                        [] fields
+                      |> List.rev
+                    in
+                    {
+                      exp = Translate.recordExp input_field_exps;
+                      ty = record_type;
+                    }
               | _ ->
                   ErrorMsg.error_pos pos
                     (Printf.sprintf "invalid record type: %s"
-                       (Types.to_string t'));
+                       (Types.to_string record_type));
                   { exp = Translate.default_exp; ty = Types.INT })
           | None ->
               ErrorMsg.error_pos pos
@@ -387,7 +380,7 @@ module Semant : SEMANT = struct
                     ErrorMsg.error_pos pos
                       "attempted to access field that does not exist in record";
                     (Types.INT, 0)
-                | (s, t) :: _ when s = sym -> (actual_ty t, idx)
+                | (s, t) :: _ when S.equal s sym -> (actual_ty t, idx)
                 | _ :: rest -> find_field rest (idx + 1)
               in
               let t, field_index = find_field fields 0 in
@@ -526,14 +519,16 @@ module Semant : SEMANT = struct
             ];
         }
     | A.VarDec { name; typ = Some (t, t_pos); init; escape; _ } ->
-        let init_expty = transExp (venv, tenv, senv, level, init) in
+        let { exp = init_exp; ty = init_ty } =
+          transExp (venv, tenv, senv, level, init)
+        in
+        let init_ty = actual_ty init_ty in
         (match Symbol.look (tenv, t) with
         | Some t' ->
-            if actual_ty t' != init_expty.ty then
+            if not @@ Types.equals (actual_ty t', init_ty) then
               ErrorMsg.error_pos t_pos
                 (Printf.sprintf "type mismatch, expected %s but got %s instead"
-                   (Symbol.name t)
-                   (Types.to_string init_expty.ty))
+                   (Symbol.name t) (Types.to_string init_ty))
         | None ->
             ErrorMsg.error_pos t_pos
               (Printf.sprintf "undefined type: %s" (Symbol.name t)));
@@ -541,15 +536,13 @@ module Semant : SEMANT = struct
         {
           venv =
             S.enter
-              ( venv,
-                name,
-                E.VarEntry { ty = init_expty.ty; access = var_access } );
+              (venv, name, E.VarEntry { ty = init_ty; access = var_access });
           tenv;
           senv;
           inits =
             [
               Translate.assignExp
-                (Translate.simpleVar (var_access, level), init_expty.exp);
+                (Translate.simpleVar (var_access, level), init_exp);
             ];
         }
 

@@ -1,0 +1,31 @@
+/* Defining recursive types in the form of a cons-list
+   à la Haskell and OCaml */
+
+let
+  /* define a list */
+  type stringlist = { hd : string, tl : stringlist } 
+
+  function reverse_list(l : stringlist) =
+    let
+      function reverse_aux(l : stringlist, acc : stringlist) =
+        if l = nil then
+          acc
+        else
+          reverse_aux(l.tl, stringlist { hd = l.hd, tl = acc })
+    in
+      reverse_aux(l, nil)
+    end
+
+  function print_list(l : stringlist) =
+    if l <> nil then
+      (print(l.hd); print_list(l.tl))
+    else
+      print("\n")
+
+  var l : stringlist := nil 
+in
+  for i := 0 to 9 do
+    l := stringlist { hd = chr(i + 97), tl = l };
+  print_list(l);
+  print_list(reverse_list(l))
+end
