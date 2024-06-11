@@ -1,0 +1,8 @@
+let
+  var i := 0
+  var max := 10
+in
+  while i < max do
+    (print(chr(ord("0") + i)); i := i + 1)
+end
+
