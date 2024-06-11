@@ -6,7 +6,7 @@ open Tree
 
 module type FRAME = sig
   type frame
-  type access = InFrame of int | InReg of Temp.temp [@@deriving compare, sexp]
+  type access = InFrame of int | InReg of Temp.temp [@@deriving ord, sexp]
   type new_frame_args = { name : Temp.label; formals : bool list }
 
   (* Fragments that are processed at the beginning of code generation,
@@ -162,7 +162,7 @@ end
 
 (* https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf *)
 module RiscVFrame : FRAME = struct
-  type access = InFrame of int | InReg of Temp.temp [@@deriving compare, sexp]
+  type access = InFrame of int | InReg of Temp.temp [@@deriving ord, sexp]
 
   type frame = {
     name : Temp.label;
@@ -224,7 +224,7 @@ module RiscVFrame : FRAME = struct
 
   let externalCall (s, args) = Tree.CALL (Tree.NAME (Temp.named_label s), args)
 
-  type register = string [@@deriving compare, sexp]
+  type register = string [@@deriving ord, sexp]
 
   let register_eq : string -> string -> bool = String.equal
 

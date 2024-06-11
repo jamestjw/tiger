@@ -2,12 +2,13 @@ open Symbol
 open Base
 
 module Absyn = struct
-  type symbol = Symbol.symbol [@@deriving compare, sexp, equal]
+  type symbol = Symbol.symbol [@@deriving eq, ord, sexp]
 
   type var =
     | SimpleVar of symbol * int
     | FieldVar of var * symbol * int
     | SubscriptVar of var * exp * int
+  [@@deriving eq, ord, sexp]
 
   and exp =
     | VarExp of var
@@ -36,9 +37,10 @@ module Absyn = struct
     | BreakExp of int
     | LetExp of { decs : dec list; body : exp; pos : int }
     | ArrayExp of { typ : symbol; size : exp; init : exp; pos : int }
-  [@@deriving compare, sexp]
+  [@@deriving ord, sexp]
 
   and var_dec_field = { name : symbol; ty : ty; pos : int }
+  [@@deriving ord, sexp]
 
   and dec =
     | FunctionDec of fundec
@@ -50,13 +52,13 @@ module Absyn = struct
         pos : int;
       }
     | TypeDec of var_dec_field
-  [@@deriving compare, sexp]
+  [@@deriving ord, sexp]
 
   and ty =
     | NameTy of symbol * int
     | RecordTy of field list
     | ArrayTy of symbol * int
-  [@@deriving compare, sexp]
+  [@@deriving ord, sexp]
 
   and oper =
     | PlusOp
@@ -69,7 +71,7 @@ module Absyn = struct
     | LeOp
     | GtOp
     | GeOp
-  [@@deriving equal]
+  [@@deriving eq, ord]
 
   and field = { name : symbol; escape : bool ref; typ : symbol; pos : int }
 
