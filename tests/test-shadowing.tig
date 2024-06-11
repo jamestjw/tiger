@@ -1,0 +1,7 @@
+let
+  var a := "Old"
+
+  function f(a : string) : string = a
+in
+  print(f("New")); print("\n")
+end

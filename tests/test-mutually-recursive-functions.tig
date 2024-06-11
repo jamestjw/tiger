@@ -1,0 +1,20 @@
+/* Define even and odd mutually recursively */
+let
+  function even(n : int) : string =
+    if n = 0 then
+      "true"
+    else
+      odd(n - 1)
+
+  function odd(n : int) : string =
+    if n = 0 then
+      "false"
+    else
+      even(n-1)
+in
+  print(even(8)); print("\n");
+  print(even(9)); print("\n");
+  print(odd(14)); print("\n");
+  print(odd(13)); print("\n")
+end
+

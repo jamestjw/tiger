@@ -1,3 +1,4 @@
+open Base
 open Env
 open Symbol
 open Types
@@ -46,14 +47,14 @@ module Semant : SEMANT = struct
   exception Semantic_error
 
   let check_type (required_type, { ty; _ }, pos, msg) =
-    if ty != required_type then ErrorMsg.error_pos pos msg
+    if not @@ Types.equals (ty, required_type) then ErrorMsg.error_pos pos msg
 
   let rec actual_ty = function
     | Types.NAME (_, t) -> (
         match !t with Some t' -> actual_ty t' | None -> raise Internal_error)
     | t -> t
 
-  module StringSet = Set.Make (String)
+  module StringSet = Stdlib.Set.Make (String)
 
   let base_senv = { break = None }
 
@@ -77,7 +78,7 @@ module Semant : SEMANT = struct
               let formals_len = List.length formals in
               if args_len = formals_len then
                 let processed_args =
-                  List.map processArg (List.combine args formals)
+                  List.map ~f:processArg (List.zip_exn args formals)
                 in
                 {
                   exp =
@@ -139,7 +140,7 @@ module Semant : SEMANT = struct
               let record_type = actual_ty t in
               match record_type with
               | Types.RECORD (fields, _) ->
-                  if List.length input_fields != List.length fields then (
+                  if not (List.length input_fields = List.length fields) then (
                     ErrorMsg.error_pos pos
                       (Printf.sprintf
                          "record initialisation expected %d fields (got %d)"
@@ -147,13 +148,13 @@ module Semant : SEMANT = struct
                     { exp = Translate.default_exp; ty = record_type })
                   else
                     let input_field_map =
-                      List.fold_left
-                        (fun tbl (sym, exp, _) -> S.enter (tbl, sym, exp))
-                        S.empty input_fields
+                      List.fold
+                        ~f:(fun tbl (sym, exp, _) -> S.enter (tbl, sym, exp))
+                        ~init:S.empty input_fields
                     in
                     let input_field_exps =
-                      List.fold_left
-                        (fun acc (sym, ty) ->
+                      List.fold
+                        ~f:(fun acc (sym, ty) ->
                           match S.look (input_field_map, sym) with
                           | Some e ->
                               let { exp; ty = ty' } = trexp e in
@@ -173,7 +174,7 @@ module Semant : SEMANT = struct
                                    "missing field '%s' in record initialisation"
                                    (S.name sym));
                               acc)
-                        [] fields
+                        ~init:[] fields
                       |> List.rev
                     in
                     {
@@ -193,10 +194,10 @@ module Semant : SEMANT = struct
           (* Returns the NIL type for empty sequences *)
           let exps', ty =
             List.fold_left
-              (fun (l, _) (e, _) ->
+              ~f:(fun (l, _) (e, _) ->
                 let { exp; ty } = trexp e in
                 (l @ [ exp ], ty))
-              ([], Types.NIL) exps
+              ~init:([], Types.NIL) exps
           in
           { exp = Translate.seqExp exps'; ty }
       | AssignExp { var; exp; pos } ->
@@ -406,10 +407,10 @@ module Semant : SEMANT = struct
     in
     trvar var
 
-  (* Adds dummy header to the type environment
-     with an empty body for type and function
-     declarations *)
-  and extractHeader (venv, tenv, senv, level, dec) =
+  (* Adds dummy header to the type environment with an empty body for type and
+     function declarations. `declared_fns` and `declared_types` keep track
+     of the stuff defined in this scope to avoid duplicated names. *)
+  and extractHeader (venv, tenv, declared_fns, declared_types, level, dec) =
     let sym_to_type (sym, pos) =
       match Symbol.look (tenv, sym) with
       | Some t' -> t'
@@ -419,49 +420,56 @@ module Semant : SEMANT = struct
           Types.INT
     in
     match dec with
-    | A.FunctionDec { name; params; result; _ } ->
-        let ret_type =
-          match result with
-          | Some (s, pos) -> sym_to_type (s, pos)
-          (* If no return type is specified, then this is a procedure *)
-          | _ -> Types.NIL
-        in
-        let label = Temp.label_from_suffix @@ Symbol.name name in
-        let level' =
-          Translate.new_level ~parent:level ~name:label
-            ~formals:(List.map (fun (f : A.field) -> !(f.escape)) params)
-            ~static:true
-        in
-        {
-          venv =
-            S.enter
+    | A.FunctionDec { name; params; result; pos; _ } ->
+        if List.mem declared_fns name ~equal:Symbol.equal then (
+          ErrorMsg.error_pos pos
+            (Printf.sprintf "duplicate function definition '%s' in local scope"
+               (Symbol.name name));
+          (venv, tenv, declared_fns, declared_types))
+        else
+          let ret_type =
+            match result with
+            | Some (s, pos) -> sym_to_type (s, pos)
+            (* If no return type is specified, then this is a procedure *)
+            | _ -> Types.NIL
+          in
+          let label = Temp.label_from_suffix @@ Symbol.name name in
+          let level' =
+            Translate.new_level ~parent:level ~name:label
+              ~formals:(List.map ~f:(fun (f : A.field) -> !(f.escape)) params)
+              ~static:true
+          in
+          ( S.enter
               ( venv,
                 name,
                 E.FunEntry
                   {
                     formals =
                       List.map
-                        (fun (param : A.field) ->
+                        ~f:(fun (param : A.field) ->
                           sym_to_type (param.typ, param.pos))
                         params;
                     result = ret_type;
                     label;
                     level = level';
-                  } );
-          tenv;
-          senv;
-          inits = [];
-        }
-    | A.TypeDec { name; _ } ->
-        (* Add in placeholder type *)
-        {
-          venv;
-          tenv = S.enter (tenv, name, Types.NAME (name, ref None));
-          senv;
-          inits = [];
-        }
+                  } ),
+            tenv,
+            name :: declared_fns,
+            declared_types )
+    | A.TypeDec { name; pos; _ } ->
+        if List.mem declared_types name ~equal:Symbol.equal then (
+          ErrorMsg.error_pos pos
+            (Printf.sprintf "duplicate type definition '%s' in local scope"
+               (Symbol.name name));
+          (venv, tenv, declared_fns, declared_types))
+        else
+          (* Add in placeholder type *)
+          ( venv,
+            S.enter (tenv, name, Types.NAME (name, ref None)),
+            declared_fns,
+            name :: declared_types )
     (* Do nothing for other types *)
-    | _ -> { venv; tenv; senv; inits = [] }
+    | _ -> (venv, tenv, declared_fns, declared_types)
 
   (* Actually process the bodies of type/function
      declarations and variable definitions *)
@@ -487,7 +495,8 @@ module Semant : SEMANT = struct
                 let ty = param_to_type param in
                 Symbol.enter (env, param.name, E.VarEntry { ty; access })
               in
-              List.fold_left2 do_param venv params (Translate.formals level')
+              List.fold2_exn ~f:do_param ~init:venv params
+                (Translate.formals level')
             in
             let body_expty = transExp (venv', tenv, senv, level', body) in
             let res_type = actual_ty result in
@@ -547,27 +556,24 @@ module Semant : SEMANT = struct
         }
 
   (* Two passes
-     1. Process headers of type/function declarations and
-        set up placeholders.
-     2. Process bodies of type/function declarations and
-        replace placeholders with actual bodies. Also handles
-        variable definitions (we do it here as these
-        definitions might use recursive types and we need to
-        call actual_ty on them)*)
+     1. Process headers of type/function declarations and set up placeholders.
+     2. Process bodies of type/function declarations and replace placeholders
+        with actual bodies. Also handles variable definitions (we do it here as
+        these definitions might use recursive types and we need to call actual_ty
+        on them) *)
   and transDecs (venv, tenv, senv, level, decs) =
-    let { venv = venv'; tenv = tenv'; inits = inits'; senv = senv' } =
+    let venv, tenv, _, _ =
       List.fold_left
-        (fun { venv = v; tenv = t; senv = s; _ } dec ->
-          extractHeader (v, t, s, level, dec))
-        { venv; tenv; senv; inits = [] }
-        decs
+        ~f:(fun (venv, tenv, declared_fns, declared_types) dec ->
+          extractHeader (venv, tenv, declared_fns, declared_types, level, dec))
+        ~init:(venv, tenv, [], []) decs
     in
     let res =
       List.fold_left
-        (fun { venv = v; tenv = t; senv = s; inits } dec ->
+        ~f:(fun { venv = v; tenv = t; senv = s; inits } dec ->
           let res = processBody (v, t, s, level, dec) in
           { res with inits = res.inits @ inits })
-        { venv = venv'; tenv = tenv'; inits = inits'; senv = senv' }
+        ~init:{ venv; tenv; inits = []; senv }
         decs
     in
     res
@@ -586,7 +592,7 @@ module Semant : SEMANT = struct
         let field_to_sym_type acc (field : A.field) =
           acc @ [ (field.name, symbol_to_type field.typ tenv field.pos) ]
         in
-        let res = List.fold_left field_to_sym_type [] fields in
+        let res = List.fold_left ~f:field_to_sym_type ~init:[] fields in
         Types.RECORD (res, ref ())
     | ArrayTy (t, pos) -> (
         match Symbol.look (tenv, t) with
