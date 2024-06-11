@@ -2,7 +2,7 @@ open Base
 open Errormsg
 
 module Symbol = struct
-  type symbol = string * int [@@deriving compare, sexp, equal, show]
+  type symbol = string * int [@@deriving sexp, show, eq]
 
   module H = Hashtbl
 

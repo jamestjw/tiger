@@ -3,7 +3,7 @@ open Base
 
 module type TEMP = sig
   (* Abstract names for local variables *)
-  type temp [@@deriving compare, sexp]
+  type temp [@@deriving ord, sexp]
 
   (* Returns a new temporary from an infinite set of temps *)
   val new_temp : unit -> temp
@@ -11,7 +11,7 @@ module type TEMP = sig
   val eq : temp -> temp -> bool
 
   (* Abstract names for static memory addresses *)
-  type label [@@deriving compare, sexp]
+  type label [@@deriving ord, sexp]
 
   (* Returns a new label from an infinite set of labels *)
   val new_label : unit -> label
@@ -34,7 +34,7 @@ end
 
 module Temp = struct
   (* Abstract names for local variables *)
-  type temp = int [@@deriving compare, sexp, show]
+  type temp = int [@@deriving ord, sexp, show]
 
   let temps = ref 100
 
@@ -47,7 +47,7 @@ module Temp = struct
   let make_string t = "t" ^ Int.to_string t
   let eq = ( = )
 
-  type label = Symbol.symbol [@@deriving compare, sexp, show]
+  type label = Symbol.symbol [@@deriving ord, sexp, show]
 
   let postinc x =
     let i = !x in
