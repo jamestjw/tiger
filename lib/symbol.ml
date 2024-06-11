@@ -26,6 +26,7 @@ module Symbol = struct
   (* Just return the first part of the tuple which is the symbol name*)
   let name (s, _) = s
   let compare_symbol s1 s2 = String.compare (name s1) (name s2)
+  let equal (_, i1) (_, i2) = i1 = i2
 
   (* Map that has an Int key and 'a value *)
   module IntMap = Stdlib.Map.Make (Int)
