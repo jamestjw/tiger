@@ -148,26 +148,23 @@ module RiscVGen : CODEGEN = struct
           *)
           let e1_temp = munchExp e1 in
           let e2_temp = munchExp e2 in
-          (* Add 1 to e2 so that we can use LT for this comparison *)
-          if Poly.(op = T.LE) then
-            emit
-              (A.OPER
-                 {
-                   assem = Printf.sprintf "\taddi 'd0, 's0, 1\n";
-                   src = [ e2_temp ];
-                   dst = [ e2_temp ];
-                   jump = None;
-                 });
-          (* Add 1 to e2 so that we can use GE for this comparison *)
-          if Poly.(op = T.GT) then
-            emit
-              (A.OPER
-                 {
-                   assem = Printf.sprintf "\taddi 'd0, 's0, 1\n";
-                   src = [ e2_temp ];
-                   dst = [ e2_temp ];
-                   jump = None;
-                 });
+          let e2_temp =
+            match op with
+            | T.LE | T.GT ->
+                (* Add 1 to e2 so that we can use LT instead of LE or GE instead
+                   of GT for this comparison *)
+                let temp = Temp.new_temp () in
+                emit
+                  (A.OPER
+                     {
+                       assem = Printf.sprintf "\taddi 'd0, 's0, 1\n";
+                       src = [ e2_temp ];
+                       dst = [ temp ];
+                       jump = None;
+                     });
+                temp
+            | _ -> e2_temp
+          in
           (* Although we fall through to the false label, we include the jump
              destination here for future liveness analysis. *)
           emit
