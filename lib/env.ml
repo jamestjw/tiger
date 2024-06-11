@@ -26,7 +26,6 @@ module Env = struct
     let functions =
       [
         ("print", [ ("s", Types.STRING) ], Types.NIL);
-        ("printint", [ ("s", Types.INT) ], Types.NIL);
         ("flush", [], Types.NIL);
         ("getchar", [], Types.STRING);
         ("ord", [ ("s", Types.STRING) ], Types.INT);
