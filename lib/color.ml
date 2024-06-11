@@ -135,7 +135,7 @@ module Color = struct
     else state
 
   let build (Flow.FGRAPH { control; use; ismove; def })
-      (precolored : allocation)
+      (precolored : allocation) (igraph : Liveness.igraph)
       (live_out_fn : Flow.Graph.node -> Temp.temp list) : state =
     let node_location =
       List.fold ~init:Temp.empty
@@ -143,70 +143,57 @@ module Color = struct
         (Temp.IntMap.bindings precolored)
     in
     let do_instr
-        ( ({ move_list; move_src_dest; worklist_moves; move_location; _ } as
-           state),
-          live ) node =
+        ({ move_list; move_src_dest; worklist_moves; move_location; _ } as state)
+        node =
       let def = Temp.Set.of_list @@ Flow.Graph.Table.look_exn (def, node) in
       let use = Temp.Set.of_list @@ Flow.Graph.Table.look_exn (use, node) in
       (* Check if node is a move *)
-      let state, live =
-        if Flow.Graph.Table.look_exn (ismove, node) then
-          (* Remove elements in `use` from `live` *)
-          let live = Temp.Set.diff live use in
-          let src, dest =
-            match
-              ( Temp.Set.to_seq use |> Stdlib.List.of_seq,
-                Temp.Set.to_seq def |> Stdlib.List.of_seq )
-            with
-            | [ e1 ], [ e2 ] -> (e1, e2) (* NOTE: The two could be the same. *)
-            | _ -> raise Invalid_node
-          in
-          let move_list =
-            Temp.Set.fold
-              (fun n move_list ->
-                let l =
-                  Temp.look (move_list, n)
-                  |> Option.value ~default:Flow.Graph.NodeSet.empty
-                in
-                let l = Flow.Graph.NodeSet.add node l in
-                Temp.enter (move_list, n, l))
-              (Temp.Set.union def use) move_list
-          in
-          let ptr = Doubly_linked.insert_last worklist_moves node in
-          ( {
-              state with
-              move_list;
-              move_location =
-                Flow.Graph.Table.enter (move_location, node, (WORKLIST, ptr));
-              move_src_dest =
-                Flow.Graph.Table.enter (move_src_dest, node, (src, dest));
-            },
-            live )
-        else (state, live)
-      in
-      let live = Temp.Set.union live def in
-      let state =
-        Temp.Set.fold
-          (fun d state ->
-            Temp.Set.fold (fun l state -> add_edge state (l, d)) live state)
-          def state
-      in
-      let live = Temp.Set.union use @@ Temp.Set.diff live def in
-
-      (state, live)
+      if Flow.Graph.Table.look_exn (ismove, node) then
+        let src, dest =
+          match
+            ( Temp.Set.to_seq use |> Stdlib.List.of_seq,
+              Temp.Set.to_seq def |> Stdlib.List.of_seq )
+          with
+          | [ e1 ], [ e2 ] -> (e1, e2) (* NOTE: The two could be the same. *)
+          | _ -> raise Invalid_node
+        in
+        let move_list =
+          Temp.Set.fold
+            (fun n move_list ->
+              let l =
+                Temp.look (move_list, n)
+                |> Option.value ~default:Flow.Graph.NodeSet.empty
+              in
+              let l = Flow.Graph.NodeSet.add node l in
+              Temp.enter (move_list, n, l))
+            (Temp.Set.union def use) move_list
+        in
+        let ptr = Doubly_linked.insert_last worklist_moves node in
+        {
+          state with
+          move_list;
+          move_location =
+            Flow.Graph.Table.enter (move_location, node, (WORKLIST, ptr));
+          move_src_dest =
+            Flow.Graph.Table.enter (move_src_dest, node, (src, dest));
+        }
+      else state
     in
 
-    (* Apparently this should be done in reversed order?! But I think the
-       nodes function already returns in reversed order so we are good !? *)
-    let nodes = Flow.Graph.nodes control in
-    let live_out_block = Temp.Set.of_list @@ live_out_fn (List.hd_exn nodes) in
-
-    let res, _ =
-      List.fold nodes
-        ~init:({ (mk_empty_state ()) with node_location }, live_out_block)
+    (* The order doesn't matter because we do not populate `adj_set` and
+       `adj_list` here. *)
+    let state =
+      List.fold (Flow.Graph.nodes control)
+        ~init:{ (mk_empty_state ()) with node_location }
         ~f:do_instr
     in
-    res
+    let adj_list = Liveness.adj_list igraph in
+    let degree =
+      Temp.IntMap.bindings adj_list
+      |> List.fold ~init:Temp.empty ~f:(fun tbl (temp, set) ->
+             Temp.enter (tbl, temp, Temp.Set.cardinal set))
+    in
+    { state with adj_set = Liveness.adj_set igraph; adj_list; degree }
 
   let node_moves { move_list; active_moves; worklist_moves; _ } temp =
     let moves = Temp.look_default (move_list, temp, Flow.Graph.NodeSet.empty) in
@@ -789,8 +776,7 @@ module Color = struct
          that works is a function that always returns 1. *)
         (spill_cost : Temp.temp -> int)
       (* List of registers/colors *)
-        (registers : Frame.register list) :
-      allocation * Temp.temp list * Temp.temp list =
+        (registers : Frame.register list) : allocation * Temp.temp list =
     (* Num registers is represented by the variable `k` here and in the
        other helper functions. *)
     let k = List.length registers in
@@ -838,13 +824,11 @@ module Color = struct
     Stdio.print_endline @@ "Initial temps: "
     ^ String.concat ~sep:","
         (List.map ~f:Frame.register_to_string_default initial_temps);
-    let state = build flowgraph initial live_out_fn in
+    let state = build flowgraph initial igraph live_out_fn in
     check_invariants state precolored k;
     let state = make_worklist state initial_temps k |> repeat in
     let ({ spilled_nodes; coalesced_nodes; _ } as state), allocation =
       assign_colors state initial registers
     in
-    ( allocation,
-      Doubly_linked.to_list spilled_nodes,
-      Doubly_linked.to_list coalesced_nodes )
+    (allocation, Doubly_linked.to_list spilled_nodes)
 end
