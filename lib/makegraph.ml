@@ -112,8 +112,6 @@ module MakeGraph = struct
           Symbol.empty,
           [] )
         instrs
-      (* We want to process from the back *)
-      (* (List.rev instrs) *)
     in
     match undefined_labels with
     | [] ->
@@ -122,7 +120,7 @@ module MakeGraph = struct
           Flow.FGRAPH
             { control = graph; def = def_tbl; use = use_tbl; ismove = move_tbl }
         in
-        (fg, nodes)
+        (fg, List.rev nodes)
     | l :: ls ->
         let label_string =
           List.fold_left
