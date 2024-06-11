@@ -372,9 +372,9 @@ module Translate = struct
 
   let seqExp l =
     match l with
+    | [] -> Ex (T.CONST 0)
     | [ e ] -> e
-    | e :: [ r ] -> Ex (T.ESEQ (unNx e, unEx r))
-    | _ ->
+    | l ->
         let rev = List.rev l in
         let last = List.hd rev in
         let rest = List.rev (List.tl rev) in

@@ -22,14 +22,14 @@
 %token EOF
 
 /* Used to resolve shift-reduce conflict (dangling else) */
+%left LOW_PREC /* Used to resolve shift-reduce conflicts (TODO: Find a better name) */
 %nonassoc THEN
 %nonassoc ELSE
 
-%left LOW_PREC /* Used to resolve shift-reduce conflicts (TODO: Find a better name) */
-%right ASSIGN
-%left AND OR
-%left EQ NEQ
-%left LT GT LE GE
+%nonassoc ASSIGN
+%left OR
+%left AND
+%nonassoc EQ NEQ LT GT LE GE
 %left PLUS MINUS
 %left TIMES DIVIDE
 %left NEG  /* negation -- unary minus */
@@ -193,16 +193,16 @@ exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
      }
     | let_stmt { $1 }
 
-var: ID DOT ID {
+var: var DOT ID {
         A.FieldVar (
-        (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ()))),
+        $1,
         (Symbol.to_symbol $3),
         (get_pos_cnum ()))
     }
     /* Indexing into array */
     | ID LBRACK exp RBRACK {
         A.SubscriptVar (
-            (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ()))),
+            (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum_of_n 1))),
             $3,
             (get_pos_cnum ()))
      }

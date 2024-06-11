@@ -205,7 +205,7 @@ module Semant : SEMANT = struct
             transVar (venv, tenv, senv, level, var)
           in
           let { ty = exp_type; exp = exp_exp } = trexp exp in
-          if not (Types.equals (var_type, exp_type)) then
+          if not (Types.equals (actual_ty var_type, actual_ty exp_type)) then
             ErrorMsg.error_pos pos
               (Printf.sprintf
                  "type mismatch: tried to assign expression of type %s to \
@@ -572,11 +572,11 @@ module Semant : SEMANT = struct
       List.fold_left
         ~f:(fun { venv = v; tenv = t; senv = s; inits } dec ->
           let res = processBody (v, t, s, level, dec) in
-          { res with inits = res.inits @ inits })
+          { res with inits = List.rev res.inits @ inits })
         ~init:{ venv; tenv; inits = []; senv }
         decs
     in
-    res
+    { res with inits = List.rev res.inits }
 
   (* Translates Absyn.ty to Types.ty *)
   and transTy (tenv, ty) =
