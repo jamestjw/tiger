@@ -38,7 +38,8 @@ let incr_linenum lexbuf =
       pos with
       Lexing.pos_lnum = pos.Lexing.pos_lnum + 1;
       (* Increment line number *)
-      Lexing.pos_bol = pos.Lexing.pos_cnum (* Increment beginning of line *);
+      Lexing.pos_bol = pos.Lexing.pos_cnum;
+      (* Increment beginning of line *)
     };
   ErrorMsg.line_num := !ErrorMsg.line_num + 1;
   ErrorMsg.line_pos := pos.Lexing.pos_cnum :: !ErrorMsg.line_pos

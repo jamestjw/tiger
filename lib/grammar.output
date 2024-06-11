@@ -1,8 +1,8 @@
    0  $accept : %entry% $end
 
-   1  input : let_stmt
+   1  input : exp EOF
 
-   2  decs : dec
+   2  decs :
    3       | decs dec
 
    4  dec : tydec
@@ -75,8 +75,8 @@
   57      | LPAREN error RPAREN
   58      | let_stmt
 
-  59  var : ID DOT ID
-  60      | ID LBRACK exp RBRACK
+  59  var : var DOT ID
+  60      | var LBRACK exp RBRACK
   61      | ID
 
   62  assignment : var ASSIGN exp
@@ -110,11 +110,28 @@ state 0
 state 1
 	%entry% : '\001' . input  (72)
 
-	LET  shift 3
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	input  goto 4
-	let_stmt  goto 5
+	input  goto 14
+	exp  goto 15
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
 state 2
@@ -124,236 +141,20 @@ state 2
 
 
 state 3
-	let_stmt : LET . decs IN expseq END  (25)
-
-	FUNCTION  shift 6
-	VAR  shift 7
-	TYPE  shift 8
-	.  error
-
-	decs  goto 9
-	dec  goto 10
-	tydec  goto 11
-	vardec  goto 12
-	fundec  goto 13
-
-
-state 4
-	%entry% : '\001' input .  (72)
-
-	.  reduce 72
-
-
-state 5
-	input : let_stmt .  (1)
-
-	.  reduce 1
-
-
-state 6
-	fundec : FUNCTION . ID LPAREN tyfields RPAREN EQ exp  (23)
-	fundec : FUNCTION . ID LPAREN tyfields RPAREN COLON ID EQ exp  (24)
-
-	ID  shift 14
-	.  error
-
-
-state 7
-	vardec : VAR . ID ASSIGN exp  (21)
-	vardec : VAR . ID COLON ID ASSIGN exp  (22)
-
-	ID  shift 15
-	.  error
-
-
-state 8
-	tydec : TYPE . ID EQ ty  (7)
-
-	ID  shift 16
-	.  error
-
-
-state 9
-	decs : decs . dec  (3)
-	let_stmt : LET decs . IN expseq END  (25)
-
-	IN  shift 17
-	FUNCTION  shift 6
-	VAR  shift 7
-	TYPE  shift 8
-	.  error
-
-	dec  goto 18
-	tydec  goto 11
-	vardec  goto 12
-	fundec  goto 13
-
-
-state 10
-	decs : dec .  (2)
-
-	.  reduce 2
-
-
-state 11
-	dec : tydec .  (4)
-
-	.  reduce 4
-
-
-state 12
-	dec : vardec .  (5)
-
-	.  reduce 5
-
-
-state 13
-	dec : fundec .  (6)
-
-	.  reduce 6
-
-
-state 14
-	fundec : FUNCTION ID . LPAREN tyfields RPAREN EQ exp  (23)
-	fundec : FUNCTION ID . LPAREN tyfields RPAREN COLON ID EQ exp  (24)
-
-	LPAREN  shift 19
-	.  error
-
-
-state 15
-	vardec : VAR ID . ASSIGN exp  (21)
-	vardec : VAR ID . COLON ID ASSIGN exp  (22)
-
-	COLON  shift 20
-	ASSIGN  shift 21
-	.  error
-
-
-state 16
-	tydec : TYPE ID . EQ ty  (7)
-
-	EQ  shift 22
-	.  error
-
-
-state 17
-	let_stmt : LET decs IN . expseq END  (25)
-	expseq : .  (26)
-
-	error  shift 23
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	END  reduce 26
-
-	let_stmt  goto 34
-	exp  goto 35
-	expseq  goto 36
-	nonempty_expseq  goto 37
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 18
-	decs : decs dec .  (3)
-
-	.  reduce 3
-
-
-state 19
-	fundec : FUNCTION ID LPAREN . tyfields RPAREN EQ exp  (23)
-	fundec : FUNCTION ID LPAREN . tyfields RPAREN COLON ID EQ exp  (24)
-	tyfields : .  (11)
-
-	ID  shift 44
-	RPAREN  reduce 11
-
-	tyfields  goto 45
-	nonempty_tyfields  goto 46
-	tyfield  goto 47
-
-
-state 20
-	vardec : VAR ID COLON . ID ASSIGN exp  (22)
-
-	ID  shift 48
-	.  error
-
-
-state 21
-	vardec : VAR ID ASSIGN . exp  (21)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 49
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 22
-	tydec : TYPE ID EQ . ty  (7)
-
-	ID  shift 50
-	LBRACE  shift 51
-	ARRAY  shift 52
-	.  error
-
-	ty  goto 53
-
-
-state 23
-	nonempty_expseq : error . SEMICOLON exp  (30)
-
-	SEMICOLON  shift 54
-	.  error
-
-
-state 24
 	exp : ID . LBRACK exp RBRACK OF exp  (51)
 	exp : ID . LBRACE record_initialisation_fields RBRACE  (52)
-	var : ID . DOT ID  (59)
-	var : ID . LBRACK exp RBRACK  (60)
 	var : ID .  (61)
 	funcall : ID . LPAREN params RPAREN  (67)
 
-	LPAREN  shift 55
-	LBRACK  shift 56
-	LBRACE  shift 57
-	DOT  shift 58
+	LPAREN  shift 23
+	LBRACK  shift 24
+	LBRACE  shift 25
 	COMMA  reduce 61
 	SEMICOLON  reduce 61
 	RPAREN  reduce 61
 	RBRACK  reduce 61
 	RBRACE  reduce 61
+	DOT  reduce 61
 	PLUS  reduce 61
 	MINUS  reduce 61
 	TIMES  reduce 61
@@ -376,157 +177,167 @@ state 24
 	FUNCTION  reduce 61
 	VAR  reduce 61
 	TYPE  reduce 61
+	EOF  reduce 61
 
 
-state 25
+state 4
 	exp : STRING .  (31)
 
 	.  reduce 31
 
 
-state 26
+state 5
 	exp : INT .  (32)
 
 	.  reduce 32
 
 
-state 27
+state 6
 	exp : LPAREN . expseq RPAREN  (56)
 	exp : LPAREN . error RPAREN  (57)
 	expseq : .  (26)
 
-	error  shift 59
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	error  shift 26
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	RPAREN  reduce 26
 
-	let_stmt  goto 34
-	exp  goto 35
-	expseq  goto 60
-	nonempty_expseq  goto 37
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 27
+	let_stmt  goto 16
+	expseq  goto 28
+	nonempty_expseq  goto 29
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 28
+state 7
 	exp : MINUS . exp  (46)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 61
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 30
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 29
+state 8
 	if_stmt : IF . exp THEN exp  (64)
 	if_stmt : IF . exp THEN exp ELSE exp  (65)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 62
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 31
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 30
+state 9
 	while_stmt : WHILE . exp DO exp  (63)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 63
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 32
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 31
+state 10
 	for_stmt : FOR . ID ASSIGN exp TO exp DO exp  (66)
 
-	ID  shift 64
+	ID  shift 33
 	.  error
 
 
-state 32
+state 11
+	let_stmt : LET . decs IN expseq END  (25)
+	decs : .  (2)
+
+	.  reduce 2
+
+	decs  goto 34
+
+
+state 12
 	exp : BREAK .  (47)
 
 	.  reduce 47
 
 
-state 33
+state 13
 	exp : NIL .  (33)
 
 	.  reduce 33
 
 
-state 34
-	exp : let_stmt .  (58)
+state 14
+	%entry% : '\001' input .  (72)
 
-	.  reduce 58
+	.  reduce 72
 
 
-state 35
-	nonempty_expseq : exp .  (28)
+state 15
+	input : exp . EOF  (1)
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -540,56 +351,49 @@ state 35
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	SEMICOLON  reduce 28
-	RPAREN  reduce 28
-	END  reduce 28
-
-
-state 36
-	let_stmt : LET decs IN expseq . END  (25)
-
-	END  shift 77
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	EOF  shift 47
 	.  error
 
 
-state 37
-	expseq : nonempty_expseq .  (27)
-	nonempty_expseq : nonempty_expseq . SEMICOLON exp  (29)
+state 16
+	exp : let_stmt .  (58)
 
-	SEMICOLON  shift 78
-	RPAREN  reduce 27
-	END  reduce 27
+	.  reduce 58
 
 
-state 38
+state 17
 	exp : assignment .  (48)
 
 	.  reduce 48
 
 
-state 39
+state 18
 	exp : funcall .  (49)
 
 	.  reduce 49
 
 
-state 40
+state 19
 	exp : var .  (50)
+	var : var . DOT ID  (59)
+	var : var . LBRACK exp RBRACK  (60)
 	assignment : var . ASSIGN exp  (62)
 
-	ASSIGN  shift 79
+	LBRACK  shift 48
+	DOT  shift 49
+	ASSIGN  shift 50
 	COMMA  reduce 50
 	SEMICOLON  reduce 50
 	RPAREN  reduce 50
@@ -616,65 +420,105 @@ state 40
 	FUNCTION  reduce 50
 	VAR  reduce 50
 	TYPE  reduce 50
+	EOF  reduce 50
 
 
-state 41
+state 20
 	exp : if_stmt .  (53)
 
 	.  reduce 53
 
 
-state 42
+state 21
 	exp : for_stmt .  (54)
 
 	.  reduce 54
 
 
-state 43
+state 22
 	exp : while_stmt .  (55)
 
 	.  reduce 55
 
 
-state 44
-	tyfield : ID . COLON ID  (15)
+state 23
+	funcall : ID LPAREN . params RPAREN  (67)
+	params : .  (68)
 
-	COLON  shift 80
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	RPAREN  reduce 68
+
+	exp  goto 51
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+	params  goto 52
+	non_empty_params  goto 53
+
+
+state 24
+	exp : ID LBRACK . exp RBRACK OF exp  (51)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 54
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 25
+	exp : ID LBRACE . record_initialisation_fields RBRACE  (52)
+	record_initialisation_fields : .  (16)
+
+	ID  shift 55
+	RBRACE  reduce 16
+
+	record_initialisation_fields  goto 56
+	ne_record_initialisation_fields  goto 57
+	record_initialisation_field  goto 58
+
+
+state 26
+	nonempty_expseq : error . SEMICOLON exp  (30)
+	exp : LPAREN error . RPAREN  (57)
+
+	SEMICOLON  shift 59
+	RPAREN  shift 60
 	.  error
 
 
-state 45
-	fundec : FUNCTION ID LPAREN tyfields . RPAREN EQ exp  (23)
-	fundec : FUNCTION ID LPAREN tyfields . RPAREN COLON ID EQ exp  (24)
-
-	RPAREN  shift 81
-	.  error
-
-
-state 46
-	tyfields : nonempty_tyfields .  (12)
-	nonempty_tyfields : nonempty_tyfields . COMMA tyfield  (14)
-
-	COMMA  shift 82
-	RPAREN  reduce 12
-	RBRACE  reduce 12
-
-
-state 47
-	nonempty_tyfields : tyfield .  (13)
-
-	.  reduce 13
-
-
-state 48
-	vardec : VAR ID COLON ID . ASSIGN exp  (22)
-
-	ASSIGN  shift 83
-	.  error
-
-
-state 49
-	vardec : VAR ID ASSIGN exp .  (21)
+state 27
+	nonempty_expseq : exp .  (28)
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -688,173 +532,40 @@ state 49
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	IN  reduce 21
-	FUNCTION  reduce 21
-	VAR  reduce 21
-	TYPE  reduce 21
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	SEMICOLON  reduce 28
+	RPAREN  reduce 28
+	END  reduce 28
 
 
-state 50
-	ty : ID .  (8)
-
-	.  reduce 8
-
-
-state 51
-	ty : LBRACE . tyfields RBRACE  (9)
-	tyfields : .  (11)
-
-	ID  shift 44
-	RBRACE  reduce 11
-
-	tyfields  goto 84
-	nonempty_tyfields  goto 46
-	tyfield  goto 47
-
-
-state 52
-	ty : ARRAY . OF ID  (10)
-
-	OF  shift 85
-	.  error
-
-
-state 53
-	tydec : TYPE ID EQ ty .  (7)
-
-	.  reduce 7
-
-
-state 54
-	nonempty_expseq : error SEMICOLON . exp  (30)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 86
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 55
-	funcall : ID LPAREN . params RPAREN  (67)
-	params : .  (68)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	RPAREN  reduce 68
-
-	let_stmt  goto 34
-	exp  goto 87
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-	params  goto 88
-	non_empty_params  goto 89
-
-
-state 56
-	exp : ID LBRACK . exp RBRACK OF exp  (51)
-	var : ID LBRACK . exp RBRACK  (60)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 90
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 57
-	exp : ID LBRACE . record_initialisation_fields RBRACE  (52)
-	record_initialisation_fields : .  (16)
-
-	ID  shift 91
-	RBRACE  reduce 16
-
-	record_initialisation_fields  goto 92
-	ne_record_initialisation_fields  goto 93
-	record_initialisation_field  goto 94
-
-
-state 58
-	var : ID DOT . ID  (59)
-
-	ID  shift 95
-	.  error
-
-
-state 59
-	nonempty_expseq : error . SEMICOLON exp  (30)
-	exp : LPAREN error . RPAREN  (57)
-
-	SEMICOLON  shift 54
-	RPAREN  shift 96
-	.  error
-
-
-state 60
+state 28
 	exp : LPAREN expseq . RPAREN  (56)
 
-	RPAREN  shift 97
+	RPAREN  shift 61
 	.  error
 
 
-state 61
+state 29
+	expseq : nonempty_expseq .  (27)
+	nonempty_expseq : nonempty_expseq . SEMICOLON exp  (29)
+
+	SEMICOLON  shift 62
+	RPAREN  reduce 27
+	END  reduce 27
+
+
+state 30
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -872,7 +583,7 @@ state 61
 	.  reduce 46
 
 
-state 62
+state 31
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -888,23 +599,23 @@ state 62
 	if_stmt : IF exp . THEN exp  (64)
 	if_stmt : IF exp . THEN exp ELSE exp  (65)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	THEN  shift 98
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	THEN  shift 63
 	.  error
 
 
-state 63
+state 32
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -919,497 +630,423 @@ state 63
 	exp : exp . OR exp  (45)
 	while_stmt : WHILE exp . DO exp  (63)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	DO  shift 99
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	DO  shift 64
 	.  error
 
 
-state 64
+state 33
 	for_stmt : FOR ID . ASSIGN exp TO exp DO exp  (66)
 
-	ASSIGN  shift 100
+	ASSIGN  shift 65
 	.  error
 
 
-state 65
+state 34
+	decs : decs . dec  (3)
+	let_stmt : LET decs . IN expseq END  (25)
+
+	IN  shift 66
+	FUNCTION  shift 67
+	VAR  shift 68
+	TYPE  shift 69
+	.  error
+
+	dec  goto 70
+	tydec  goto 71
+	vardec  goto 72
+	fundec  goto 73
+
+
+state 35
 	exp : exp PLUS . exp  (34)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 101
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 74
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 66
+state 36
 	exp : exp MINUS . exp  (35)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 102
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 75
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 67
+state 37
 	exp : exp TIMES . exp  (36)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 103
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 76
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 68
+state 38
 	exp : exp DIVIDE . exp  (37)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 104
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 77
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 69
+state 39
 	exp : exp EQ . exp  (38)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 105
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 78
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 70
+state 40
 	exp : exp NEQ . exp  (39)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 106
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 79
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 71
+state 41
 	exp : exp LT . exp  (40)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 107
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 80
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 72
+state 42
 	exp : exp LE . exp  (42)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 108
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 81
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 73
+state 43
 	exp : exp GT . exp  (41)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 109
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 82
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 74
+state 44
 	exp : exp GE . exp  (43)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 110
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 83
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 75
+state 45
 	exp : exp AND . exp  (44)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 111
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 84
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 76
+state 46
 	exp : exp OR . exp  (45)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 112
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 85
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 77
-	let_stmt : LET decs IN expseq END .  (25)
+state 47
+	input : exp EOF .  (1)
 
-	.  reduce 25
+	.  reduce 1
 
 
-state 78
-	nonempty_expseq : nonempty_expseq SEMICOLON . exp  (29)
+state 48
+	var : var LBRACK . exp RBRACK  (60)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 113
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 86
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 79
+state 49
+	var : var DOT . ID  (59)
+
+	ID  shift 87
+	.  error
+
+
+state 50
 	assignment : var ASSIGN . exp  (62)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 114
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 88
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 80
-	tyfield : ID COLON . ID  (15)
-
-	ID  shift 115
-	.  error
-
-
-state 81
-	fundec : FUNCTION ID LPAREN tyfields RPAREN . EQ exp  (23)
-	fundec : FUNCTION ID LPAREN tyfields RPAREN . COLON ID EQ exp  (24)
-
-	COLON  shift 116
-	EQ  shift 117
-	.  error
-
-
-state 82
-	nonempty_tyfields : nonempty_tyfields COMMA . tyfield  (14)
-
-	ID  shift 44
-	.  error
-
-	tyfield  goto 118
-
-
-state 83
-	vardec : VAR ID COLON ID ASSIGN . exp  (22)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 119
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 84
-	ty : LBRACE tyfields . RBRACE  (9)
-
-	RBRACE  shift 120
-	.  error
-
-
-state 85
-	ty : ARRAY OF . ID  (10)
-
-	ID  shift 121
-	.  error
-
-
-state 86
-	nonempty_expseq : error SEMICOLON exp .  (30)
-	exp : exp . PLUS exp  (34)
-	exp : exp . MINUS exp  (35)
-	exp : exp . TIMES exp  (36)
-	exp : exp . DIVIDE exp  (37)
-	exp : exp . EQ exp  (38)
-	exp : exp . NEQ exp  (39)
-	exp : exp . LT exp  (40)
-	exp : exp . GT exp  (41)
-	exp : exp . LE exp  (42)
-	exp : exp . GE exp  (43)
-	exp : exp . AND exp  (44)
-	exp : exp . OR exp  (45)
-
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	SEMICOLON  reduce 30
-	RPAREN  reduce 30
-	END  reduce 30
-
-
-state 87
+state 51
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1424,38 +1061,38 @@ state 87
 	exp : exp . OR exp  (45)
 	non_empty_params : exp .  (70)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 70
 	RPAREN  reduce 70
 
 
-state 88
+state 52
 	funcall : ID LPAREN params . RPAREN  (67)
 
-	RPAREN  shift 122
+	RPAREN  shift 89
 	.  error
 
 
-state 89
+state 53
 	params : non_empty_params .  (69)
 	non_empty_params : non_empty_params . COMMA exp  (71)
 
-	COMMA  shift 123
+	COMMA  shift 90
 	RPAREN  reduce 69
 
 
-state 90
+state 54
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1469,150 +1106,272 @@ state 90
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 	exp : ID LBRACK exp . RBRACK OF exp  (51)
-	var : ID LBRACK exp . RBRACK  (60)
 
-	RBRACK  shift 124
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	RBRACK  shift 91
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	.  error
 
 
-state 91
+state 55
 	record_initialisation_field : ID . EQ exp  (20)
 
-	EQ  shift 125
+	EQ  shift 92
 	.  error
 
 
-state 92
+state 56
 	exp : ID LBRACE record_initialisation_fields . RBRACE  (52)
 
-	RBRACE  shift 126
+	RBRACE  shift 93
 	.  error
 
 
-state 93
+state 57
 	record_initialisation_fields : ne_record_initialisation_fields .  (17)
 	ne_record_initialisation_fields : ne_record_initialisation_fields . COMMA record_initialisation_field  (19)
 
-	COMMA  shift 127
+	COMMA  shift 94
 	RBRACE  reduce 17
 
 
-state 94
+state 58
 	ne_record_initialisation_fields : record_initialisation_field .  (18)
 
 	.  reduce 18
 
 
-state 95
-	var : ID DOT ID .  (59)
+state 59
+	nonempty_expseq : error SEMICOLON . exp  (30)
 
-	.  reduce 59
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 95
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 96
+state 60
 	exp : LPAREN error RPAREN .  (57)
 
 	.  reduce 57
 
 
-state 97
+state 61
 	exp : LPAREN expseq RPAREN .  (56)
 
 	.  reduce 56
 
 
-state 98
+state 62
+	nonempty_expseq : nonempty_expseq SEMICOLON . exp  (29)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 96
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 63
 	if_stmt : IF exp THEN . exp  (64)
 	if_stmt : IF exp THEN . exp ELSE exp  (65)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 128
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 97
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 99
+state 64
 	while_stmt : WHILE exp DO . exp  (63)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 129
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 98
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 100
+state 65
 	for_stmt : FOR ID ASSIGN . exp TO exp DO exp  (66)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 130
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 99
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 101
+state 66
+	let_stmt : LET decs IN . expseq END  (25)
+	expseq : .  (26)
+
+	error  shift 100
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	END  reduce 26
+
+	exp  goto 27
+	let_stmt  goto 16
+	expseq  goto 101
+	nonempty_expseq  goto 29
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 67
+	fundec : FUNCTION . ID LPAREN tyfields RPAREN EQ exp  (23)
+	fundec : FUNCTION . ID LPAREN tyfields RPAREN COLON ID EQ exp  (24)
+
+	ID  shift 102
+	.  error
+
+
+state 68
+	vardec : VAR . ID ASSIGN exp  (21)
+	vardec : VAR . ID COLON ID ASSIGN exp  (22)
+
+	ID  shift 103
+	.  error
+
+
+state 69
+	tydec : TYPE . ID EQ ty  (7)
+
+	ID  shift 104
+	.  error
+
+
+state 70
+	decs : decs dec .  (3)
+
+	.  reduce 3
+
+
+state 71
+	dec : tydec .  (4)
+
+	.  reduce 4
+
+
+state 72
+	dec : vardec .  (5)
+
+	.  reduce 5
+
+
+state 73
+	dec : fundec .  (6)
+
+	.  reduce 6
+
+
+state 74
 	exp : exp . PLUS exp  (34)
 	exp : exp PLUS exp .  (34)
 	exp : exp . MINUS exp  (35)
@@ -1627,8 +1386,8 @@ state 101
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	TIMES  shift 67
-	DIVIDE  shift 68
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 34
 	SEMICOLON  reduce 34
 	RPAREN  reduce 34
@@ -1653,9 +1412,10 @@ state 101
 	FUNCTION  reduce 34
 	VAR  reduce 34
 	TYPE  reduce 34
+	EOF  reduce 34
 
 
-state 102
+state 75
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp MINUS exp .  (35)
@@ -1670,8 +1430,8 @@ state 102
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	TIMES  shift 67
-	DIVIDE  shift 68
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 35
 	SEMICOLON  reduce 35
 	RPAREN  reduce 35
@@ -1696,9 +1456,10 @@ state 102
 	FUNCTION  reduce 35
 	VAR  reduce 35
 	TYPE  reduce 35
+	EOF  reduce 35
 
 
-state 103
+state 76
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1716,7 +1477,7 @@ state 103
 	.  reduce 36
 
 
-state 104
+state 77
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1734,7 +1495,7 @@ state 104
 	.  reduce 37
 
 
-state 105
+state 78
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1749,14 +1510,14 @@ state 105
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
 	COMMA  reduce 38
 	SEMICOLON  reduce 38
 	RPAREN  reduce 38
@@ -1775,9 +1536,10 @@ state 105
 	FUNCTION  reduce 38
 	VAR  reduce 38
 	TYPE  reduce 38
+	EOF  reduce 38
 
 
-state 106
+state 79
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1792,14 +1554,14 @@ state 106
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
 	COMMA  reduce 39
 	SEMICOLON  reduce 39
 	RPAREN  reduce 39
@@ -1818,9 +1580,10 @@ state 106
 	FUNCTION  reduce 39
 	VAR  reduce 39
 	TYPE  reduce 39
+	EOF  reduce 39
 
 
-state 107
+state 80
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1835,10 +1598,10 @@ state 107
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 40
 	SEMICOLON  reduce 40
 	RPAREN  reduce 40
@@ -1861,9 +1624,10 @@ state 107
 	FUNCTION  reduce 40
 	VAR  reduce 40
 	TYPE  reduce 40
+	EOF  reduce 40
 
 
-state 108
+state 81
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1878,10 +1642,10 @@ state 108
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 42
 	SEMICOLON  reduce 42
 	RPAREN  reduce 42
@@ -1904,9 +1668,10 @@ state 108
 	FUNCTION  reduce 42
 	VAR  reduce 42
 	TYPE  reduce 42
+	EOF  reduce 42
 
 
-state 109
+state 82
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1921,10 +1686,10 @@ state 109
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 41
 	SEMICOLON  reduce 41
 	RPAREN  reduce 41
@@ -1947,9 +1712,10 @@ state 109
 	FUNCTION  reduce 41
 	VAR  reduce 41
 	TYPE  reduce 41
+	EOF  reduce 41
 
 
-state 110
+state 83
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -1964,10 +1730,10 @@ state 110
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
 	COMMA  reduce 43
 	SEMICOLON  reduce 43
 	RPAREN  reduce 43
@@ -1990,9 +1756,10 @@ state 110
 	FUNCTION  reduce 43
 	VAR  reduce 43
 	TYPE  reduce 43
+	EOF  reduce 43
 
 
-state 111
+state 84
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2007,16 +1774,16 @@ state 111
 	exp : exp AND exp .  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
 	COMMA  reduce 44
 	SEMICOLON  reduce 44
 	RPAREN  reduce 44
@@ -2033,9 +1800,10 @@ state 111
 	FUNCTION  reduce 44
 	VAR  reduce 44
 	TYPE  reduce 44
+	EOF  reduce 44
 
 
-state 112
+state 85
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2050,16 +1818,16 @@ state 112
 	exp : exp . OR exp  (45)
 	exp : exp OR exp .  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
 	COMMA  reduce 45
 	SEMICOLON  reduce 45
 	RPAREN  reduce 45
@@ -2076,10 +1844,10 @@ state 112
 	FUNCTION  reduce 45
 	VAR  reduce 45
 	TYPE  reduce 45
+	EOF  reduce 45
 
 
-state 113
-	nonempty_expseq : nonempty_expseq SEMICOLON exp .  (29)
+state 86
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2092,25 +1860,31 @@ state 113
 	exp : exp . GE exp  (43)
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
+	var : var LBRACK exp . RBRACK  (60)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	SEMICOLON  reduce 29
-	RPAREN  reduce 29
-	END  reduce 29
+	RBRACK  shift 105
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	.  error
 
 
-state 114
+state 87
+	var : var DOT ID .  (59)
+
+	.  reduce 59
+
+
+state 88
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2125,18 +1899,18 @@ state 114
 	exp : exp . OR exp  (45)
 	assignment : var ASSIGN exp .  (62)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 62
 	SEMICOLON  reduce 62
 	RPAREN  reduce 62
@@ -2151,55 +1925,91 @@ state 114
 	FUNCTION  reduce 62
 	VAR  reduce 62
 	TYPE  reduce 62
+	EOF  reduce 62
 
 
-state 115
-	tyfield : ID COLON ID .  (15)
+state 89
+	funcall : ID LPAREN params RPAREN .  (67)
 
-	.  reduce 15
+	.  reduce 67
 
 
-state 116
-	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON . ID EQ exp  (24)
+state 90
+	non_empty_params : non_empty_params COMMA . exp  (71)
 
-	ID  shift 131
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 106
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 91
+	exp : ID LBRACK exp RBRACK . OF exp  (51)
+
+	OF  shift 107
 	.  error
 
 
-state 117
-	fundec : FUNCTION ID LPAREN tyfields RPAREN EQ . exp  (23)
+state 92
+	record_initialisation_field : ID EQ . exp  (20)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 132
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 108
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 118
-	nonempty_tyfields : nonempty_tyfields COMMA tyfield .  (14)
+state 93
+	exp : ID LBRACE record_initialisation_fields RBRACE .  (52)
 
-	.  reduce 14
+	.  reduce 52
 
 
-state 119
-	vardec : VAR ID COLON ID ASSIGN exp .  (22)
+state 94
+	ne_record_initialisation_fields : ne_record_initialisation_fields COMMA . record_initialisation_field  (19)
+
+	ID  shift 55
+	.  error
+
+	record_initialisation_field  goto 109
+
+
+state 95
+	nonempty_expseq : error SEMICOLON exp .  (30)
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2213,144 +2023,56 @@ state 119
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	IN  reduce 22
-	FUNCTION  reduce 22
-	VAR  reduce 22
-	TYPE  reduce 22
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	SEMICOLON  reduce 30
+	RPAREN  reduce 30
+	END  reduce 30
 
 
-state 120
-	ty : LBRACE tyfields RBRACE .  (9)
+state 96
+	nonempty_expseq : nonempty_expseq SEMICOLON exp .  (29)
+	exp : exp . PLUS exp  (34)
+	exp : exp . MINUS exp  (35)
+	exp : exp . TIMES exp  (36)
+	exp : exp . DIVIDE exp  (37)
+	exp : exp . EQ exp  (38)
+	exp : exp . NEQ exp  (39)
+	exp : exp . LT exp  (40)
+	exp : exp . GT exp  (41)
+	exp : exp . LE exp  (42)
+	exp : exp . GE exp  (43)
+	exp : exp . AND exp  (44)
+	exp : exp . OR exp  (45)
 
-	.  reduce 9
-
-
-state 121
-	ty : ARRAY OF ID .  (10)
-
-	.  reduce 10
-
-
-state 122
-	funcall : ID LPAREN params RPAREN .  (67)
-
-	.  reduce 67
-
-
-state 123
-	non_empty_params : non_empty_params COMMA . exp  (71)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 133
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	SEMICOLON  reduce 29
+	RPAREN  reduce 29
+	END  reduce 29
 
 
-state 124
-	exp : ID LBRACK exp RBRACK . OF exp  (51)
-	var : ID LBRACK exp RBRACK .  (60)
-
-	OF  shift 134
-	COMMA  reduce 60
-	SEMICOLON  reduce 60
-	RPAREN  reduce 60
-	RBRACK  reduce 60
-	RBRACE  reduce 60
-	PLUS  reduce 60
-	MINUS  reduce 60
-	TIMES  reduce 60
-	DIVIDE  reduce 60
-	EQ  reduce 60
-	NEQ  reduce 60
-	LT  reduce 60
-	LE  reduce 60
-	GT  reduce 60
-	GE  reduce 60
-	AND  reduce 60
-	OR  reduce 60
-	ASSIGN  reduce 60
-	THEN  reduce 60
-	ELSE  reduce 60
-	TO  reduce 60
-	DO  reduce 60
-	IN  reduce 60
-	END  reduce 60
-	FUNCTION  reduce 60
-	VAR  reduce 60
-	TYPE  reduce 60
-
-
-state 125
-	record_initialisation_field : ID EQ . exp  (20)
-
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
-	.  error
-
-	let_stmt  goto 34
-	exp  goto 135
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
-
-
-state 126
-	exp : ID LBRACE record_initialisation_fields RBRACE .  (52)
-
-	.  reduce 52
-
-
-state 127
-	ne_record_initialisation_fields : ne_record_initialisation_fields COMMA . record_initialisation_field  (19)
-
-	ID  shift 91
-	.  error
-
-	record_initialisation_field  goto 136
-
-
-state 128
+state 97
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2366,19 +2088,19 @@ state 128
 	if_stmt : IF exp THEN exp .  (64)
 	if_stmt : IF exp THEN exp . ELSE exp  (65)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	ELSE  shift 137
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	ELSE  shift 110
 	COMMA  reduce 64
 	SEMICOLON  reduce 64
 	RPAREN  reduce 64
@@ -2392,9 +2114,10 @@ state 128
 	FUNCTION  reduce 64
 	VAR  reduce 64
 	TYPE  reduce 64
+	EOF  reduce 64
 
 
-state 129
+state 98
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2409,18 +2132,18 @@ state 129
 	exp : exp . OR exp  (45)
 	while_stmt : WHILE exp DO exp .  (63)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 63
 	SEMICOLON  reduce 63
 	RPAREN  reduce 63
@@ -2435,9 +2158,10 @@ state 129
 	FUNCTION  reduce 63
 	VAR  reduce 63
 	TYPE  reduce 63
+	EOF  reduce 63
 
 
-state 130
+state 99
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2452,63 +2176,67 @@ state 130
 	exp : exp . OR exp  (45)
 	for_stmt : FOR ID ASSIGN exp . TO exp DO exp  (66)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	TO  shift 138
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	TO  shift 111
 	.  error
 
 
-state 131
-	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID . EQ exp  (24)
+state 100
+	nonempty_expseq : error . SEMICOLON exp  (30)
 
-	EQ  shift 139
+	SEMICOLON  shift 59
 	.  error
 
 
-state 132
-	fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp .  (23)
-	exp : exp . PLUS exp  (34)
-	exp : exp . MINUS exp  (35)
-	exp : exp . TIMES exp  (36)
-	exp : exp . DIVIDE exp  (37)
-	exp : exp . EQ exp  (38)
-	exp : exp . NEQ exp  (39)
-	exp : exp . LT exp  (40)
-	exp : exp . GT exp  (41)
-	exp : exp . LE exp  (42)
-	exp : exp . GE exp  (43)
-	exp : exp . AND exp  (44)
-	exp : exp . OR exp  (45)
+state 101
+	let_stmt : LET decs IN expseq . END  (25)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	IN  reduce 23
-	FUNCTION  reduce 23
-	VAR  reduce 23
-	TYPE  reduce 23
+	END  shift 112
+	.  error
 
 
-state 133
+state 102
+	fundec : FUNCTION ID . LPAREN tyfields RPAREN EQ exp  (23)
+	fundec : FUNCTION ID . LPAREN tyfields RPAREN COLON ID EQ exp  (24)
+
+	LPAREN  shift 113
+	.  error
+
+
+state 103
+	vardec : VAR ID . ASSIGN exp  (21)
+	vardec : VAR ID . COLON ID ASSIGN exp  (22)
+
+	COLON  shift 114
+	ASSIGN  shift 115
+	.  error
+
+
+state 104
+	tydec : TYPE ID . EQ ty  (7)
+
+	EQ  shift 116
+	.  error
+
+
+state 105
+	var : var LBRACK exp RBRACK .  (60)
+
+	.  reduce 60
+
+
+state 106
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2523,49 +2251,49 @@ state 133
 	exp : exp . OR exp  (45)
 	non_empty_params : non_empty_params COMMA exp .  (71)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 71
 	RPAREN  reduce 71
 
 
-state 134
+state 107
 	exp : ID LBRACK exp RBRACK OF . exp  (51)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 140
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 117
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 135
+state 108
 	record_initialisation_field : ID EQ exp .  (20)
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
@@ -2580,107 +2308,144 @@ state 135
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 20
 	RBRACE  reduce 20
 
 
-state 136
+state 109
 	ne_record_initialisation_fields : ne_record_initialisation_fields COMMA record_initialisation_field .  (19)
 
 	.  reduce 19
 
 
-state 137
+state 110
 	if_stmt : IF exp THEN exp ELSE . exp  (65)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 141
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 118
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 138
+state 111
 	for_stmt : FOR ID ASSIGN exp TO . exp DO exp  (66)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 142
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+	exp  goto 119
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 139
-	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ . exp  (24)
+state 112
+	let_stmt : LET decs IN expseq END .  (25)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	.  reduce 25
+
+
+state 113
+	fundec : FUNCTION ID LPAREN . tyfields RPAREN EQ exp  (23)
+	fundec : FUNCTION ID LPAREN . tyfields RPAREN COLON ID EQ exp  (24)
+	tyfields : .  (11)
+
+	ID  shift 120
+	RPAREN  reduce 11
+
+	tyfields  goto 121
+	nonempty_tyfields  goto 122
+	tyfield  goto 123
+
+
+state 114
+	vardec : VAR ID COLON . ID ASSIGN exp  (22)
+
+	ID  shift 124
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 143
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+
+state 115
+	vardec : VAR ID ASSIGN . exp  (21)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 125
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
 
 
-state 140
+state 116
+	tydec : TYPE ID EQ . ty  (7)
+
+	ID  shift 126
+	LBRACE  shift 127
+	ARRAY  shift 128
+	.  error
+
+	ty  goto 129
+
+
+state 117
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2695,18 +2460,18 @@ state 140
 	exp : exp . OR exp  (45)
 	exp : ID LBRACK exp RBRACK OF exp .  (51)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 51
 	SEMICOLON  reduce 51
 	RPAREN  reduce 51
@@ -2721,9 +2486,10 @@ state 140
 	FUNCTION  reduce 51
 	VAR  reduce 51
 	TYPE  reduce 51
+	EOF  reduce 51
 
 
-state 141
+state 118
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2738,18 +2504,18 @@ state 141
 	exp : exp . OR exp  (45)
 	if_stmt : IF exp THEN exp ELSE exp .  (65)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 65
 	SEMICOLON  reduce 65
 	RPAREN  reduce 65
@@ -2764,9 +2530,10 @@ state 141
 	FUNCTION  reduce 65
 	VAR  reduce 65
 	TYPE  reduce 65
+	EOF  reduce 65
 
 
-state 142
+state 119
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2781,24 +2548,61 @@ state 142
 	exp : exp . OR exp  (45)
 	for_stmt : FOR ID ASSIGN exp TO exp . DO exp  (66)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	DO  shift 144
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	DO  shift 130
 	.  error
 
 
-state 143
-	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp .  (24)
+state 120
+	tyfield : ID . COLON ID  (15)
+
+	COLON  shift 131
+	.  error
+
+
+state 121
+	fundec : FUNCTION ID LPAREN tyfields . RPAREN EQ exp  (23)
+	fundec : FUNCTION ID LPAREN tyfields . RPAREN COLON ID EQ exp  (24)
+
+	RPAREN  shift 132
+	.  error
+
+
+state 122
+	tyfields : nonempty_tyfields .  (12)
+	nonempty_tyfields : nonempty_tyfields . COMMA tyfield  (14)
+
+	COMMA  shift 133
+	RPAREN  reduce 12
+	RBRACE  reduce 12
+
+
+state 123
+	nonempty_tyfields : tyfield .  (13)
+
+	.  reduce 13
+
+
+state 124
+	vardec : VAR ID COLON ID . ASSIGN exp  (22)
+
+	ASSIGN  shift 134
+	.  error
+
+
+state 125
+	vardec : VAR ID ASSIGN exp .  (21)
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2812,51 +2616,147 @@ state 143
 	exp : exp . AND exp  (44)
 	exp : exp . OR exp  (45)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
-	IN  reduce 24
-	FUNCTION  reduce 24
-	VAR  reduce 24
-	TYPE  reduce 24
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	IN  reduce 21
+	FUNCTION  reduce 21
+	VAR  reduce 21
+	TYPE  reduce 21
 
 
-state 144
-	for_stmt : FOR ID ASSIGN exp TO exp DO . exp  (66)
+state 126
+	ty : ID .  (8)
 
-	ID  shift 24
-	STRING  shift 25
-	INT  shift 26
-	LPAREN  shift 27
-	MINUS  shift 28
-	IF  shift 29
-	WHILE  shift 30
-	FOR  shift 31
-	LET  shift 3
-	BREAK  shift 32
-	NIL  shift 33
+	.  reduce 8
+
+
+state 127
+	ty : LBRACE . tyfields RBRACE  (9)
+	tyfields : .  (11)
+
+	ID  shift 120
+	RBRACE  reduce 11
+
+	tyfields  goto 135
+	nonempty_tyfields  goto 122
+	tyfield  goto 123
+
+
+state 128
+	ty : ARRAY . OF ID  (10)
+
+	OF  shift 136
 	.  error
 
-	let_stmt  goto 34
-	exp  goto 145
-	assignment  goto 38
-	funcall  goto 39
-	var  goto 40
-	if_stmt  goto 41
-	for_stmt  goto 42
-	while_stmt  goto 43
+
+state 129
+	tydec : TYPE ID EQ ty .  (7)
+
+	.  reduce 7
 
 
-state 145
+state 130
+	for_stmt : FOR ID ASSIGN exp TO exp DO . exp  (66)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 137
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 131
+	tyfield : ID COLON . ID  (15)
+
+	ID  shift 138
+	.  error
+
+
+state 132
+	fundec : FUNCTION ID LPAREN tyfields RPAREN . EQ exp  (23)
+	fundec : FUNCTION ID LPAREN tyfields RPAREN . COLON ID EQ exp  (24)
+
+	COLON  shift 139
+	EQ  shift 140
+	.  error
+
+
+state 133
+	nonempty_tyfields : nonempty_tyfields COMMA . tyfield  (14)
+
+	ID  shift 120
+	.  error
+
+	tyfield  goto 141
+
+
+state 134
+	vardec : VAR ID COLON ID ASSIGN . exp  (22)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 142
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 135
+	ty : LBRACE tyfields . RBRACE  (9)
+
+	RBRACE  shift 143
+	.  error
+
+
+state 136
+	ty : ARRAY OF . ID  (10)
+
+	ID  shift 144
+	.  error
+
+
+state 137
 	exp : exp . PLUS exp  (34)
 	exp : exp . MINUS exp  (35)
 	exp : exp . TIMES exp  (36)
@@ -2871,18 +2771,18 @@ state 145
 	exp : exp . OR exp  (45)
 	for_stmt : FOR ID ASSIGN exp TO exp DO exp .  (66)
 
-	PLUS  shift 65
-	MINUS  shift 66
-	TIMES  shift 67
-	DIVIDE  shift 68
-	EQ  shift 69
-	NEQ  shift 70
-	LT  shift 71
-	LE  shift 72
-	GT  shift 73
-	GE  shift 74
-	AND  shift 75
-	OR  shift 76
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
 	COMMA  reduce 66
 	SEMICOLON  reduce 66
 	RPAREN  reduce 66
@@ -2897,7 +2797,197 @@ state 145
 	FUNCTION  reduce 66
 	VAR  reduce 66
 	TYPE  reduce 66
+	EOF  reduce 66
 
 
-48 terminals, 27 nonterminals
-73 grammar rules, 146 states
+state 138
+	tyfield : ID COLON ID .  (15)
+
+	.  reduce 15
+
+
+state 139
+	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON . ID EQ exp  (24)
+
+	ID  shift 145
+	.  error
+
+
+state 140
+	fundec : FUNCTION ID LPAREN tyfields RPAREN EQ . exp  (23)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 146
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 141
+	nonempty_tyfields : nonempty_tyfields COMMA tyfield .  (14)
+
+	.  reduce 14
+
+
+state 142
+	vardec : VAR ID COLON ID ASSIGN exp .  (22)
+	exp : exp . PLUS exp  (34)
+	exp : exp . MINUS exp  (35)
+	exp : exp . TIMES exp  (36)
+	exp : exp . DIVIDE exp  (37)
+	exp : exp . EQ exp  (38)
+	exp : exp . NEQ exp  (39)
+	exp : exp . LT exp  (40)
+	exp : exp . GT exp  (41)
+	exp : exp . LE exp  (42)
+	exp : exp . GE exp  (43)
+	exp : exp . AND exp  (44)
+	exp : exp . OR exp  (45)
+
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	IN  reduce 22
+	FUNCTION  reduce 22
+	VAR  reduce 22
+	TYPE  reduce 22
+
+
+state 143
+	ty : LBRACE tyfields RBRACE .  (9)
+
+	.  reduce 9
+
+
+state 144
+	ty : ARRAY OF ID .  (10)
+
+	.  reduce 10
+
+
+state 145
+	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID . EQ exp  (24)
+
+	EQ  shift 147
+	.  error
+
+
+state 146
+	fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp .  (23)
+	exp : exp . PLUS exp  (34)
+	exp : exp . MINUS exp  (35)
+	exp : exp . TIMES exp  (36)
+	exp : exp . DIVIDE exp  (37)
+	exp : exp . EQ exp  (38)
+	exp : exp . NEQ exp  (39)
+	exp : exp . LT exp  (40)
+	exp : exp . GT exp  (41)
+	exp : exp . LE exp  (42)
+	exp : exp . GE exp  (43)
+	exp : exp . AND exp  (44)
+	exp : exp . OR exp  (45)
+
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	IN  reduce 23
+	FUNCTION  reduce 23
+	VAR  reduce 23
+	TYPE  reduce 23
+
+
+state 147
+	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ . exp  (24)
+
+	ID  shift 3
+	STRING  shift 4
+	INT  shift 5
+	LPAREN  shift 6
+	MINUS  shift 7
+	IF  shift 8
+	WHILE  shift 9
+	FOR  shift 10
+	LET  shift 11
+	BREAK  shift 12
+	NIL  shift 13
+	.  error
+
+	exp  goto 148
+	let_stmt  goto 16
+	assignment  goto 17
+	funcall  goto 18
+	var  goto 19
+	if_stmt  goto 20
+	for_stmt  goto 21
+	while_stmt  goto 22
+
+
+state 148
+	fundec : FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp .  (24)
+	exp : exp . PLUS exp  (34)
+	exp : exp . MINUS exp  (35)
+	exp : exp . TIMES exp  (36)
+	exp : exp . DIVIDE exp  (37)
+	exp : exp . EQ exp  (38)
+	exp : exp . NEQ exp  (39)
+	exp : exp . LT exp  (40)
+	exp : exp . GT exp  (41)
+	exp : exp . LE exp  (42)
+	exp : exp . GE exp  (43)
+	exp : exp . AND exp  (44)
+	exp : exp . OR exp  (45)
+
+	PLUS  shift 35
+	MINUS  shift 36
+	TIMES  shift 37
+	DIVIDE  shift 38
+	EQ  shift 39
+	NEQ  shift 40
+	LT  shift 41
+	LE  shift 42
+	GT  shift 43
+	GE  shift 44
+	AND  shift 45
+	OR  shift 46
+	IN  reduce 24
+	FUNCTION  reduce 24
+	VAR  reduce 24
+	TYPE  reduce 24
+
+
+49 terminals, 27 nonterminals
+73 grammar rules, 149 states
