@@ -3,6 +3,7 @@ open Temp
 open Tree
 open Frame
 open Errormsg
+open Types
 module A = Absyn
 module T = Tree
 
@@ -219,9 +220,8 @@ module Translate = struct
     in
     Ex (Tree.BINOP (op', unEx left, unEx right))
 
-  let comparisonOperation (left, op, right) =
-    (* TODO: Implement string comparison *)
-    let op' =
+  let comparisonOperation (left, op, right, left_type, right_type) =
+    let op =
       match op with
       | A.EqOp -> T.EQ
       | A.NeqOp -> T.NE
@@ -231,7 +231,17 @@ module Translate = struct
       | A.GeOp -> T.GE
       | _ -> ErrorMsg.impossible "Invalid comparison operator"
     in
-    Cx (fun (t, f) -> T.CJUMP (op', unEx left, unEx right, t, f))
+    match (left_type, right_type, op) with
+    | Types.INT, Types.INT, op ->
+        Some (Cx (fun (t, f) -> T.CJUMP (op, unEx left, unEx right, t, f)))
+    | (Types.NIL | Types.RECORD _), (Types.RECORD _ | Types.NIL), (T.EQ | T.NE) ->
+        Some (Cx (fun (t, f) -> T.CJUMP (op, unEx left, unEx right, t, f)))
+    | Types.STRING, Types.STRING, op ->
+        let cmp_res =
+          Frame.externalCall ("strcmp", [ unEx left; unEx right ])
+        in
+        Some (Cx (fun (t, f) -> T.CJUMP (op, cmp_res, T.CONST 0, t, f)))
+    | _ -> None
 
   let ifThenElse (test, t, f) =
     let t_label = Temp.new_label () in

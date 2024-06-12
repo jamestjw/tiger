@@ -1,51 +1,61 @@
+/* This program reads two lists of positive integers from the standard input;
+   the numbers in each list should be sorted in increasing order, separated by
+   blanks or newlines; each list should be terminated by a semicolon.
+
+   The output is the merge of the two lists: a single list of integers in
+   increasing order. */
+
 let
-  type any = {any : int}
+  type any = { any : int }
   var buffer := getchar()
 
-  function readint(any: any) : int =
+  function readint(any : any) : int =
   let var i := 0
       function isdigit(s : string) : int =
-        ord(buffer)>=ord("0") & ord(buffer)<=ord("9")
+        ord(buffer) >= ord("0") & ord(buffer) <= ord("9")
       function skipto() =
-        while buffer=" " | buffer="\n"
+        while buffer = " " | buffer = "\n"
           do buffer := getchar()
     in skipto();
       any.any := isdigit(buffer);
       while isdigit(buffer)
-        do (i := i*10+ord(buffer)-ord("0"); buffer := getchar());
+        do (i := i * 10 + ord(buffer) - ord("0"); buffer := getchar());
       i
   end
 
-  type list = {first: int, rest: list}
+  type list = {first : int, rest : list}
 
   function readlist() : list =
-    let var any := any{any=0}
+    let var any := any {any = 0}
       var i := readint(any)
     in 
-      if any.any then list{first=i,rest=readlist()}
+      if any.any then list {first = i, rest = readlist()}
       else nil
     end
 
-  function merge(a: list, b: list) : list =
-    if a=nil then b
-    else if b=nil then a
+  function merge(a : list, b : list) : list =
+    if a = nil then b
+    else if b = nil then a
     else if a.first < b.first
-        then list{first=a.first,rest=merge(a.rest,b)}
-        else list{first=b.first,rest=merge(a,b.rest)}
+        then list {first = a.first, rest = merge(a.rest, b) }
+        else list {first = b.first, rest = merge(a, b.rest) }
 
-  function printint(i: int) =
-    let function f(i:int) = if i>0
-      then (f(i/10); print(chr(i-i/10*10+ord("0"))))
-    in if i<0 then (print("-"); f(-i))
-      else if i>0 then f(i)
+  function printint(i : int) =
+    let function f(i : int) = if i > 0
+      then (f(i / 10); print(chr(i- i / 10 * 10 + ord("0"))))
+    in if i < 0 then (print("-"); f(-i))
+      else if i > 0 then f(i)
       else print("0")
     end
 
-  function printlist(l: list) =
-    if l=nil then print("\n")
+  function printlist(l : list) =
+    if l = nil then print("\n")
     else (printint(l.first); print(" "); printlist(l.rest))
 
-    var list1 := readlist()
-    var list2 := (buffer:=getchar(); readlist())
-  in printlist(merge(list1,list2))
+  var list1 := readlist()
+  var list2 := (buffer := getchar(); readlist())
+in
+  print("List 1: "); printlist(list1);
+  print("List 2: "); printlist(list2);
+  print("Result: "); printlist(merge(list1,list2))
 end

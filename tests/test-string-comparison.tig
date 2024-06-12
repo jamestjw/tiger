@@ -1,0 +1,18 @@
+let
+  function is_eq(s1 : string, s2 : string) =
+    if s1 = s2 then
+      print("true\n")
+    else
+      print("false\n")
+
+  function is_neq(s1 : string, s2 : string) =
+    if s1 <> s2 then
+      print("true\n")
+    else
+      print("false\n")
+in
+  is_eq("Hello", "Hello");
+  is_neq("Hello", "Hello");
+  is_eq("Hello", "World");
+  is_neq("Hello", "World")
+end

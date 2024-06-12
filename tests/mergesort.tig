@@ -1,0 +1,74 @@
+/* This program reads a lists of positive integers from the standard input;
+   the numbers should separated by blanks or newlines; the list should be
+   terminated by a semicolon.
+
+   The output is the sorted version of the input list. */
+
+let
+  type any = { any : int }
+  var buffer := getchar()
+
+  function readint(any : any) : int =
+  let var i := 0
+      function isdigit(s : string) : int =
+        ord(buffer) >= ord("0") & ord(buffer) <= ord("9")
+      function skipto() =
+        while buffer = " " | buffer = "\n"
+          do buffer := getchar()
+    in skipto();
+      any.any := isdigit(buffer);
+      while isdigit(buffer)
+        do (i := i * 10 + ord(buffer) - ord("0"); buffer := getchar());
+      i
+  end
+
+  type list = {first : int, rest : list}
+  type listpair = {fst : list, snd : list}
+
+  function readlist() : list =
+    let var any := any {any = 0}
+      var i := readint(any)
+    in
+      if any.any then list {first = i, rest = readlist()}
+      else nil
+    end
+
+  function mergesort (l : list) : list =
+    let
+      function split(x : list, y : list, z : list) : listpair =
+        if x = nil then listpair { fst = y, snd = z }
+        else split(x.rest, z, list { first = x.first, rest = y })
+
+      function merge(a : list, b : list) : list =
+        if a = nil then b
+        else if b = nil then a
+        else if a.first < b.first
+            then list {first = a.first, rest = merge(a.rest, b) }
+            else list {first = b.first, rest = merge(a, b.rest) }
+    in
+      if l = nil | l.rest = nil then l
+      else
+        let
+          var pri_seg := split(l, nil, nil)
+        in
+          merge(mergesort(pri_seg.fst), mergesort(pri_seg.snd))
+        end
+    end
+
+  function printint(i : int) =
+    let function f(i : int) = if i > 0
+      then (f(i / 10); print(chr(i- i / 10 * 10 + ord("0"))))
+    in if i < 0 then (print("-"); f(-i))
+      else if i > 0 then f(i)
+      else print("0")
+    end
+
+  function printlist(l : list) =
+    if l = nil then print("\n")
+    else (printint(l.first); print(" "); printlist(l.rest))
+
+  var input_list := readlist()
+in
+  printlist(input_list);
+  printlist(mergesort(input_list))
+end

@@ -2,13 +2,13 @@ open Symbol
 open Base
 
 module Absyn = struct
-  type symbol = Symbol.symbol [@@deriving eq, ord, sexp]
+  type symbol = Symbol.symbol [@@deriving eq, ord, sexp, show]
 
   type var =
     | SimpleVar of symbol * int
     | FieldVar of var * symbol * int
     | SubscriptVar of var * exp * int
-  [@@deriving eq, ord, sexp]
+  [@@deriving eq, ord, sexp, show]
 
   and exp =
     | VarExp of var
@@ -71,7 +71,7 @@ module Absyn = struct
     | LeOp
     | GtOp
     | GeOp
-  [@@deriving eq, ord]
+  [@@deriving eq, ord, show]
 
   and field = { name : symbol; escape : bool ref; typ : symbol; pos : int }
 
@@ -107,8 +107,10 @@ module Absyn = struct
     | ArrayExp { pos; _ } -> pos
 
   let is_arithmetic_op op =
-    List.mem [ PlusOp; MinusOp; TimesOp; DivideOp ] op ~equal:equal_oper
+    match op with PlusOp | MinusOp | TimesOp | DivideOp -> true | _ -> false
 
   let is_comparison_op op =
-    List.mem [ EqOp; NeqOp; LtOp; LeOp; GtOp; GeOp ] op ~equal:equal_oper
+    match op with
+    | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp -> true
+    | _ -> false
 end
