@@ -242,9 +242,7 @@ module Color = struct
 
   let decrement_degree ({ degree; _ } as state) m k =
     let d = get_degree state m in
-    (* Stdio.printf "Decrementing degree of %s with current degree of %d\n" *)
-    (* (Frame.register_to_string_default m) *)
-    (* d; *)
+
     let state = { state with degree = Temp.enter (degree, m, d - 1) } in
     if d = k then (
       let ({
@@ -297,9 +295,7 @@ module Color = struct
           (FREEZE_WL, Doubly_linked.insert_last freeze_worklist n)
         else (SIMP_WL, Doubly_linked.insert_last simplify_worklist n)
       in
-      Stdio.printf "%s goes to %s\n"
-        (Frame.register_to_string_default n)
-        (show_node_location loc);
+
       {
         state with
         node_location = Temp.enter (node_location, n, (loc, Some ptr));
@@ -312,7 +308,6 @@ module Color = struct
     let n = Doubly_linked.remove_last simplify_worklist |> Stdlib.Option.get in
     match temp_tbl_look_exn node_location n with
     | SIMP_WL, _ ->
-        Stdio.printf "Simplified %s\n" (Frame.register_to_string_default n);
         Stack.push select_stack n;
         List.fold
           ~init:
@@ -337,9 +332,7 @@ module Color = struct
         (not (is_precolored state u))
         && (not (is_move_related state u))
         && d < k
-      then (
-        Printf.printf "Moved %s from FREEZE -> SIMPLIFY\n"
-          (Frame.register_to_string_default u);
+      then
         match temp_tbl_look_exn node_location u with
         | FREEZE_WL, Some ptr ->
             let new_ptr = Doubly_linked.insert_last simplify_worklist u in
@@ -349,7 +342,7 @@ module Color = struct
               node_location =
                 Temp.enter (node_location, u, (SIMP_WL, Some new_ptr));
             }
-        | _ -> raise Invalid_node)
+        | _ -> raise Invalid_node
       else state
     in
     let ok ({ degree; adj_set; _ } as state) t r =
@@ -371,12 +364,8 @@ module Color = struct
            _;
          } as state) u v =
       (match temp_tbl_look_exn node_location v with
-      | FREEZE_WL, Some ptr ->
-          Stdio.print_endline "Moved v from FREEZE to COALESCED";
-          Doubly_linked.remove freeze_worklist ptr
-      | SPILL_WL, Some ptr ->
-          Stdio.print_endline "Moved v from SPILL to COALESCED";
-          Doubly_linked.remove spill_worklist ptr
+      | FREEZE_WL, Some ptr -> Doubly_linked.remove freeze_worklist ptr
+      | SPILL_WL, Some ptr -> Doubly_linked.remove spill_worklist ptr
       | _ -> raise Invalid_node);
 
       let new_ptr = Doubly_linked.insert_last coalesced_nodes v in
@@ -442,10 +431,6 @@ module Color = struct
     | _ -> raise Invalid_node);
 
     let move_src, move_dest = Flow.Graph.Table.look_exn (move_src_dest, m) in
-    Stdio.printf "Coalescing src: %s dest: %s\n"
-      (Frame.register_to_string_default move_src)
-      (Frame.register_to_string_default move_dest);
-
     let move_src = get_alias state move_src in
     let move_dest = get_alias state move_dest in
 
@@ -455,10 +440,7 @@ module Color = struct
       | _ -> (move_src, move_dest)
     in
 
-    Stdio.printf "u: %s v: %s\n"
-      (Frame.register_to_string_default u)
-      (Frame.register_to_string_default v);
-    if Temp.eq u v then (
+    if Temp.eq u v then
       let new_ptr = Doubly_linked.insert_last coalesced_moves m in
       let state =
         {
@@ -468,9 +450,8 @@ module Color = struct
         }
       in
 
-      Stdio.print_endline "Move m to coalesced and add u to worklist.";
-      add_worklist state u)
-    else if is_precolored state v || Temp.PairSet.mem (u, v) adj_set then (
+      add_worklist state u
+    else if is_precolored state v || Temp.PairSet.mem (u, v) adj_set then
       let new_ptr = Doubly_linked.insert_last constrained_moves m in
       let state =
         {
@@ -480,10 +461,7 @@ module Color = struct
         }
       in
 
-      Stdio.printf "Move m to constrained and add u(%s), v(%s) to worklist.\n"
-        (Frame.register_to_string_default u)
-        (Frame.register_to_string_default v);
-      add_worklist state u |> Fn.flip add_worklist v)
+      add_worklist state u |> Fn.flip add_worklist v
     else if
       is_precolored state u
       && List.for_all (adjacent state v) ~f:(fun t -> ok state t u)
@@ -491,7 +469,7 @@ module Color = struct
          && conservative state
               (List.dedup_and_sort ~compare:Temp.compare_temp
                  (adjacent state u @ adjacent state v))
-    then (
+    then
       let new_ptr = Doubly_linked.insert_last coalesced_moves m in
       let state =
         {
@@ -500,12 +478,10 @@ module Color = struct
             Flow.Graph.Table.enter (move_location, m, (COALESCED, new_ptr));
         }
       in
-      Stdio.print_endline "Combining and add u to worklist.";
-      combine state u v |> Fn.flip add_worklist u)
+      combine state u v |> Fn.flip add_worklist u
     else
       let new_ptr = Doubly_linked.insert_last active_moves m in
 
-      Stdio.print_endline "Move m to active.";
       {
         state with
         move_location =
@@ -555,10 +531,7 @@ module Color = struct
                 }
             | _ -> raise Invalid_node
           else state
-      | loc, _ ->
-          Stdio.printf "Expected ACTIVE but got %s instead.\n"
-          @@ show_move_location loc;
-          raise Invalid_node
+      | loc, _ -> raise Invalid_node
     in
     List.fold ~init:state ~f:do_move (node_moves state u)
 
@@ -586,7 +559,6 @@ module Color = struct
     in
     match spills with
     | m :: _ -> (
-        Stdio.printf "Selected spill %s\n" (Frame.register_to_string_default m);
         match temp_tbl_look_exn node_location m with
         | SPILL_WL, Some ptr ->
             Doubly_linked.remove spill_worklist ptr;
@@ -601,15 +573,7 @@ module Color = struct
         | _ -> raise Invalid_node)
     (* This should never happen, we should always have something to spill when
        we call this function *)
-    | _ ->
-        Stdio.printf "Spill worklist: %s\n"
-        @@ String.concat ~sep:","
-             (Doubly_linked.to_list spill_worklist
-             |> List.map ~f:(fun e ->
-                    Printf.sprintf "%s(%d)"
-                      (Frame.register_to_string_default e)
-                      (get_degree state e)));
-        raise Fatal_error
+    | _ -> raise Fatal_error
 
   let assign_colors ({ select_stack; _ } as state) (initial : allocation)
       (registers : Frame.register list) : state * allocation =
@@ -702,18 +666,7 @@ module Color = struct
         let u_degree = temp_tbl_look_exn degree u in
         let num_neighbors = Temp.Set.cardinal neighbors in
         if u_degree = num_neighbors then ()
-        else (
-          Stdio.printf
-            "degree[%s] = %d does not match number of neighbors (%d)\n"
-            (Frame.register_to_string_default u)
-            u_degree num_neighbors;
-          Stdio.printf "Removed by intersection: %s\n"
-            (String.concat ~sep:","
-               (List.map ~f:Frame.register_to_string_default
-               @@ Stdlib.List.of_seq
-               @@ Temp.Set.to_seq
-                    (Temp.Set.diff adj precolored_simp_freeze_spill)));
-          raise Degree_invariant_violation))
+        else raise Degree_invariant_violation)
       simp_freeze_spill;
 
     (* Simplify worklist invariant *)
@@ -732,12 +685,7 @@ module Color = struct
           = 0
         in
         match (cond1, cond2) with
-        | false, _ ->
-            Stdio.printf
-              "Simplifiable node degree[%s] = %d not less than k (%d)\n"
-              (Frame.register_to_string_default u)
-              u_degree k;
-            raise Simplify_wl_invariant_violation
+        | false, _ -> raise Simplify_wl_invariant_violation
         | _, false -> raise Simplify_wl_invariant_violation
         | _ -> ());
 
@@ -760,9 +708,7 @@ module Color = struct
 
     (* Spill worklist invariant *)
     Doubly_linked.iter spill_worklist ~f:(fun u ->
-        assert (temp_tbl_look_exn degree u >= k));
-
-    Stdio.print_endline "Invariants hold!"
+        assert (temp_tbl_look_exn degree u >= k))
 
   (* The function produces an extension of the initial allocation by
      assigning all temporaries in the interference graph a register
@@ -792,18 +738,14 @@ module Color = struct
            spill_worklist;
            _;
          } as state) =
-      if not @@ Doubly_linked.is_empty simplify_worklist then (
-        Stdio.print_endline "Simplifying...";
-        simplify state k |> repeat)
-      else if not @@ Doubly_linked.is_empty worklist_moves then (
-        Stdio.print_endline "Coalescing ...";
-        coalesce state k |> repeat)
-      else if not @@ Doubly_linked.is_empty freeze_worklist then (
-        Stdio.print_endline "Freezing ...";
-        freeze state k |> repeat)
-      else if not @@ Doubly_linked.is_empty spill_worklist then (
-        Stdio.print_endline "Selecting spill ...";
-        select_spill state spill_cost k |> repeat)
+      if not @@ Doubly_linked.is_empty simplify_worklist then
+        simplify state k |> repeat
+      else if not @@ Doubly_linked.is_empty worklist_moves then
+        coalesce state k |> repeat
+      else if not @@ Doubly_linked.is_empty freeze_worklist then
+        freeze state k |> repeat
+      else if not @@ Doubly_linked.is_empty spill_worklist then
+        select_spill state spill_cost k |> repeat
       else state (* All worklists are empty, this means that we are done *)
     in
 
@@ -811,9 +753,7 @@ module Color = struct
     let (IGRAPH { graph; gtemp; _ } as igraph), live_out_fn =
       Liveness.mk_interference_graph flowgraph
     in
-    (* TODO: remove *)
-    (* Flow.show flowgraph; *)
-    (* Liveness.show igraph; *)
+
     (* Filter out temps that are not precolored *)
     let initial_temps =
       Liveness.IGraph.nodes graph
@@ -821,9 +761,7 @@ module Color = struct
       |> List.filter ~f:(fun temp ->
              Temp.look (initial, temp) |> Option.is_none)
     in
-    Stdio.print_endline @@ "Initial temps: "
-    ^ String.concat ~sep:","
-        (List.map ~f:Frame.register_to_string_default initial_temps);
+
     let state = build flowgraph initial igraph live_out_fn in
     check_invariants state precolored k;
     let state = make_worklist state initial_temps k |> repeat in

@@ -131,17 +131,6 @@ module Liveness = struct
       |> Option.fold ~none:[] ~some:(fun (_, l) -> l)
     in
 
-    (* The livemap is correct, so its the graph below thats wrong *)
-    (* List.iter *)
-    (* (fun n -> *)
-    (* Printf.printf "Node %s Liveout : %s \n" (Flow.Graph.nodename n) *)
-    (* (String.concat " " *)
-    (* (live_out_fn n |> List.map Frame.Frame.register_to_string_default)); *)
-    (* Printf.printf "Defined: %s\n" *)
-    (* (String.concat " " *)
-    (* (Flow.Graph.Table.look_exn (def, n) *)
-    (* |> List.map Frame.Frame.register_to_string_default))) *)
-    (* (Flow.Graph.nodes control); *)
     let graph, tnode_tbl, gtemp_tbl, move_list =
       List.fold_left
         (fun (g, tn, gt, ml) node ->
@@ -181,18 +170,6 @@ module Liveness = struct
         (IGraph.newGraph (), tnode_tbl, gtemp_tbl, [])
         (Flow.Graph.nodes control)
     in
-
-    Printf.printf "Length of gtemp: %d, tnode: %d, numnodes: %d\n"
-      (List.length (IGraph.Table.bindings gtemp_tbl))
-      (List.length (Temp.IntMap.bindings tnode_tbl))
-      (List.length (IGraph.nodes graph));
-
-    assert (
-      List.length (IGraph.nodes graph)
-      = List.length (IGraph.Table.bindings gtemp_tbl));
-    assert (
-      List.length (IGraph.nodes graph)
-      = List.length (Temp.IntMap.bindings tnode_tbl));
 
     ( IGRAPH
         {

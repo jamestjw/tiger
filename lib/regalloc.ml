@@ -78,10 +78,6 @@ module RegAlloc = struct
   let alloc (instrs : Assem.instr list) (frame : Frame.frame) :
       Assem.instr list * allocation =
     let rec inner instrs =
-      (* List.iter instrs ~f:(fun i -> *)
-      (* Stdio.print_string @@ Assem.format Frame.register_to_string_default i); *)
-      (*  *)
-      (* List.iter instrs ~f:(fun i -> Stdio.print_endline @@ Assem.show_instr i); *)
       let initial_allocation = Frame.get_temp_map () in
       let registers =
         Temp.IntMap.bindings initial_allocation |> List.map ~f:(fun (_, e) -> e)
@@ -105,16 +101,7 @@ module RegAlloc = struct
               | _ -> true)
         in
         (coalesced_instrs, allocation)
-      else (
-        Printf.printf "Spills: %s\n"
-          (String.concat ~sep:" "
-             (List.map ~f:Frame.register_to_string_default spills));
-        let instrs = rewrite_program spills instrs frame in
-
-        Stdio.print_endline "New instrs: ";
-        List.iter instrs ~f:(fun i -> Stdio.print_endline @@ Assem.show_instr i);
-        (* ignore @@ Errormsg.ErrorMsg.impossible "stop here for now"; *)
-        inner instrs)
+      else rewrite_program spills instrs frame |> inner
     in
 
     inner instrs
