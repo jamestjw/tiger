@@ -366,6 +366,11 @@ module Semant : SEMANT = struct
       | A.SimpleVar (id, pos) -> (
           match Symbol.look (venv, id) with
           | Some (E.VarEntry { ty; access }) ->
+              Stdio.printf
+                "Accessing variable %s with access %s.\nCalling from level %s\n"
+                (Symbol.name id)
+                (Translate.show_access access)
+                (Translate.show_level level);
               { exp = Translate.simpleVar (access, level); ty = actual_ty ty }
           | _ ->
               ErrorMsg.error_pos pos

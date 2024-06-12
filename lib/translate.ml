@@ -64,8 +64,9 @@ module Translate = struct
     (* To know if calling this function requires adding a static link *)
     static : bool;
   }
+  [@@deriving show]
 
-  type access = level * Frame.access
+  type access = level * Frame.access [@@deriving show]
   type frag = Frame.frag
 
   let outermost =
@@ -140,12 +141,12 @@ module Translate = struct
     | Ex (T.CONST 1) -> fun (t, _) -> T.JUMP (T.NAME t, [ t ])
     | Ex e -> fun (t, f) -> T.CJUMP (T.NE, e, T.CONST 0, t, f)
 
-  let level_equal l1 l2 = l1.unique = l2.unique
+  let level_equal l1 l2 = l1.unique == l2.unique
 
-  let simpleVar ((original_level, a), l) =
+  let simpleVar ((var_level, a), l) =
     let rec do_one_level curr_level frame_addr =
       (* If we are at the right level, then just load from this frame *)
-      if level_equal original_level curr_level then Frame.exp a frame_addr
+      if level_equal var_level curr_level then Frame.exp a frame_addr
       else
         match curr_level.parent with
         | Some parent ->
@@ -310,8 +311,7 @@ module Translate = struct
   let findFunctionStaticLink (fn_level, call_level) =
     let rec do_one_level curr_level frame_addr =
       (* If we are at the right level, then just load from this frame *)
-      if level_equal fn_level curr_level then
-        Frame.exp (static_link fn_level) frame_addr
+      if level_equal fn_level curr_level then frame_addr
       else
         match curr_level.parent with
         | Some parent ->
@@ -321,10 +321,14 @@ module Translate = struct
     in
     Ex (do_one_level call_level (T.TEMP Frame.fp))
 
-  let callExp (name, args, ({ static; _ } as fn_level), call_level) =
+  let callExp (name, args, { static; parent; _ }, call_level) =
     let call_args =
-      if static then findFunctionStaticLink (fn_level, call_level) :: args
-      else args
+      match (static, parent) with
+      | false, _ -> args
+      | true, Some parent_level ->
+          findFunctionStaticLink (parent_level, call_level) :: args
+      | true, None ->
+          Errormsg.ErrorMsg.impossible "Called function without parent"
     in
     Ex (T.CALL (T.NAME name, List.map unEx call_args))
 

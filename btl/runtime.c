@@ -118,3 +118,5 @@ char *concat(const char *s1, const char *s2) {
 
   return result;
 }
+
+void flush() { fflush(stdin); }

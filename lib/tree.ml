@@ -46,6 +46,7 @@ module Tree = struct
        address. This is like a label definition in assembly language. After which
        NAME(n) may be the target of jumps, calls, etc *)
     | LABEL of Temp.label
+  [@@deriving show]
 
   and binop =
     (* Integer arithmetic operators *)
