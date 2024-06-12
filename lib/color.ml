@@ -812,8 +812,8 @@ module Color = struct
       Liveness.mk_interference_graph flowgraph
     in
     (* TODO: remove *)
-    Flow.show flowgraph;
-    Liveness.show igraph;
+    (* Flow.show flowgraph; *)
+    (* Liveness.show igraph; *)
     (* Filter out temps that are not precolored *)
     let initial_temps =
       Liveness.IGraph.nodes graph

@@ -132,17 +132,16 @@ module Liveness = struct
     in
 
     (* The livemap is correct, so its the graph below thats wrong *)
-    List.iter
-      (fun n ->
-        Printf.printf "Node %s Liveout : %s \n" (Flow.Graph.nodename n)
-          (String.concat " "
-             (live_out_fn n |> List.map Frame.Frame.register_to_string_default));
-        Printf.printf "Defined: %s\n"
-          (String.concat " "
-             (Flow.Graph.Table.look_exn (def, n)
-             |> List.map Frame.Frame.register_to_string_default)))
-      (Flow.Graph.nodes control);
-
+    (* List.iter *)
+    (* (fun n -> *)
+    (* Printf.printf "Node %s Liveout : %s \n" (Flow.Graph.nodename n) *)
+    (* (String.concat " " *)
+    (* (live_out_fn n |> List.map Frame.Frame.register_to_string_default)); *)
+    (* Printf.printf "Defined: %s\n" *)
+    (* (String.concat " " *)
+    (* (Flow.Graph.Table.look_exn (def, n) *)
+    (* |> List.map Frame.Frame.register_to_string_default))) *)
+    (* (Flow.Graph.nodes control); *)
     let graph, tnode_tbl, gtemp_tbl, move_list =
       List.fold_left
         (fun (g, tn, gt, ml) node ->

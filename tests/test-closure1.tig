@@ -1,0 +1,11 @@
+/* Closure (1 level) */
+
+let
+  var a := "test"
+
+  function printA() =
+    print(a)
+in
+  printA()
+end
+

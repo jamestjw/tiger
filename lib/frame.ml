@@ -5,8 +5,11 @@ open Temp
 open Tree
 
 module type FRAME = sig
-  type frame
-  type access = InFrame of int | InReg of Temp.temp [@@deriving ord, sexp]
+  type frame [@@deriving show]
+
+  type access = InFrame of int | InReg of Temp.temp
+  [@@deriving ord, sexp, show]
+
   type new_frame_args = { name : Temp.label; formals : bool list }
 
   (* Fragments that are processed at the beginning of code generation,
@@ -162,7 +165,8 @@ end
 
 (* https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf *)
 module RiscVFrame : FRAME = struct
-  type access = InFrame of int | InReg of Temp.temp [@@deriving ord, sexp]
+  type access = InFrame of int | InReg of Temp.temp
+  [@@deriving ord, sexp, show]
 
   type frame = {
     name : Temp.label;
@@ -178,6 +182,7 @@ module RiscVFrame : FRAME = struct
        are. *)
     max_num_parameters : int ref;
   }
+  [@@deriving show]
 
   type new_frame_args = { name : Temp.label; formals : bool list }
 
