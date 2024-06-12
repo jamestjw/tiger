@@ -1,0 +1,13 @@
+let
+  type person = { name : string }
+  type personArray = array of person
+  var N := 10
+  var arr := personArray [N] of (person { name = "" })
+in
+  for i := 0 to N - 1 do
+    arr[i] := person { name = chr(97 + i) };
+
+  for i := 0 to N - 1 do
+    print(arr[i].name)
+end
+
