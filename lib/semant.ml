@@ -94,26 +94,43 @@ module Semant : SEMANT = struct
               ErrorMsg.error_pos pos
                 (Printf.sprintf "undefined function %s" (S.name id));
               { exp = Translate.default_exp; ty = Types.INT })
-      | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper ->
+      | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper -> (
           let { ty = left_ty; exp = left_exp } = trexp left in
           let { ty = right_ty; exp = right_exp } = trexp right in
-          (match left_ty with
+          let left_ty = actual_ty left_ty in
+          let right_ty = actual_ty right_ty in
+          match left_ty with
           | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
           | Types.ARRAY _ ->
-              if not (Types.equals (left_ty, right_ty)) then
+              if Types.equals (left_ty, right_ty) then (
+                match
+                  Translate.comparisonOperation
+                    (left_exp, oper, right_exp, left_ty, right_ty)
+                with
+                | Some exp ->
+                    (* Comparison always returns an INT *)
+                    { exp; ty = Types.INT }
+                | None ->
+                    ErrorMsg.error_pos pos
+                      (Printf.sprintf
+                         "comparison operator %s between types %s and %s is \
+                          not supported"
+                         (A.show_oper oper) (Types.to_string left_ty)
+                         (Types.to_string right_ty));
+                    { exp = Translate.default_exp; ty = Types.INT })
+              else (
                 ErrorMsg.error_pos pos
                   (Printf.sprintf
                      "both expressions should have matching types, left:%s \
                       right:%s"
-                     (Types.to_string left_ty) (Types.to_string right_ty))
+                     (Types.to_string left_ty) (Types.to_string right_ty));
+
+                { exp = Translate.default_exp; ty = Types.INT })
           | _ ->
               ErrorMsg.error_pos pos
                 "comparison operators are only compatible with INT, STRING, \
-                 ARRAY and RECORD types");
-          {
-            exp = Translate.comparisonOperation (left_exp, oper, right_exp);
-            ty = Types.INT;
-          }
+                 ARRAY and RECORD types";
+              { exp = Translate.default_exp; ty = Types.INT })
       | A.OpExp { left; oper; right; _ } when A.is_arithmetic_op oper ->
           let left_expty = trexp left in
           let right_expty = trexp right in
@@ -366,11 +383,6 @@ module Semant : SEMANT = struct
       | A.SimpleVar (id, pos) -> (
           match Symbol.look (venv, id) with
           | Some (E.VarEntry { ty; access }) ->
-              Stdio.printf
-                "Accessing variable %s with access %s.\nCalling from level %s\n"
-                (Symbol.name id)
-                (Translate.show_access access)
-                (Translate.show_level level);
               { exp = Translate.simpleVar (access, level); ty = actual_ty ty }
           | _ ->
               ErrorMsg.error_pos pos

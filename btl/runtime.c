@@ -120,3 +120,17 @@ char *concat(const char *s1, const char *s2) {
 }
 
 void flush() { fflush(stdin); }
+
+char *__wrap_getchar() {
+  int i = getc(stdin);
+
+  if (i == EOF)
+    return "";
+  else {
+    char *p = malloc(2);
+    p[0] = i;
+    p[1] = '\0';
+
+    return p;
+  }
+}
