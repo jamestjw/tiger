@@ -37,6 +37,7 @@ module Env = struct
         ("concat", [ ("s1", Types.STRING); ("s2", Types.STRING) ], Types.STRING);
         ("not", [ ("i", Types.INT) ], Types.INT);
         ("exit", [ ("i", Types.INT) ], Types.NIL);
+        ("assert_non_null", [ ("ptr", Types.INT) ], Types.NIL);
       ]
     in
     List.fold_left
