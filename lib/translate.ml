@@ -177,35 +177,44 @@ module Translate = struct
             (binOpMul (T.CONST Frame.word_size) (unEx index_exp))))
 
   (* Assume that stdlib functions do not require a static link *)
-  (* TODO: Check this! We don't want to emit the extra argument here. *)
   let callStdlibExp (name, args) =
-    Ex (T.CALL (T.NAME name, T.CONST 0 :: List.map unEx args))
+    Ex (Frame.externalCall (name, List.map unEx args))
 
   let fieldVar (var_exp, field_index) =
     (* Store the record pointer in a register so we can
        check that it is not null *)
     let r = Temp.new_temp () in
-    let quit_label = Temp.new_label () in
-    let ok_label = Temp.new_label () in
+    (* NOTE: This was previously used  when checking for null pointers. *)
+    (* let quit_label = Temp.new_label () in *)
+    (* let ok_label = Temp.new_label () in *)
     Ex
       (T.ESEQ
          ( seq
              [
                T.MOVE (T.TEMP r, unEx var_exp);
-               T.CJUMP (T.EQ, T.TEMP r, T.CONST 0, quit_label, ok_label);
-               T.LABEL quit_label;
-               (* If we encounter a null pointer, print a message and exit *)
-               unNx
-                 (callStdlibExp
-                    ( Temp.named_label "print",
-                      [ stringExp "Null pointer dereference" ] ));
-               unNx
-                 (callStdlibExp (Temp.named_label "exit", [ Ex (T.CONST 1) ]));
-               T.LABEL ok_label;
+               unNx (callStdlibExp ("assert_non_null", [ Ex (T.TEMP r) ]));
+               (* TODO: Generating the following code everytime there is a field
+                  access adds bloat to the output code and also slows down register
+                  allocation. One day when we have a runtime library written in
+                  Tiger, we should move this there, but for now, we shall call the runtime fn
+                  written in C to assert that the pointer is non null. *)
+
+               (* T.CJUMP (T.EQ, T.TEMP r, T.CONST 0, quit_label, ok_label); *)
+               (* T.LABEL quit_label; *)
+               (* (* If we encounter a null pointer, print a message and exit *) *)
+               (* unNx *)
+               (* (callStdlibExp *)
+               (* ( Temp.named_label "print", *)
+               (* [ stringExp "Null pointer dereference" ] )); *)
+               (* unNx *)
+               (* (callStdlibExp (Temp.named_label "exit", [ Ex (T.CONST 1) ])); *)
+               (* T.LABEL ok_label; *)
              ],
+           (* TODO: We manually did the constant folding here, though it
+              wouldn't been necessary if the compiler implemented constant
+              folding as an optimisation. *)
            T.MEM
-             (binOpPlus (T.TEMP r)
-                (binOpMul (T.CONST Frame.word_size) (T.CONST field_index))) ))
+             (binOpPlus (T.TEMP r) (T.CONST (Frame.word_size * field_index))) ))
 
   let assignExp (var, exp) = Nx (T.MOVE (unEx var, unEx exp))
 
@@ -237,10 +246,8 @@ module Translate = struct
     | (Types.NIL | Types.RECORD _), (Types.RECORD _ | Types.NIL), (T.EQ | T.NE) ->
         Some (Cx (fun (t, f) -> T.CJUMP (op, unEx left, unEx right, t, f)))
     | Types.STRING, Types.STRING, op ->
-        let cmp_res =
-          Frame.externalCall ("strcmp", [ unEx left; unEx right ])
-        in
-        Some (Cx (fun (t, f) -> T.CJUMP (op, cmp_res, T.CONST 0, t, f)))
+        let cmp_res = callStdlibExp ("strcmp", [ left; right ]) in
+        Some (Cx (fun (t, f) -> T.CJUMP (op, unEx cmp_res, T.CONST 0, t, f)))
     | _ -> None
 
   let ifThenElse (test, t, f) =
@@ -310,13 +317,13 @@ module Translate = struct
              ([
                 T.MOVE
                   ( T.TEMP r,
-                    Frame.externalCall ("malloc", [ T.CONST record_size ]) );
+                    unEx
+                    @@ callStdlibExp ("malloc", [ Ex (T.CONST record_size) ]) );
               ]
              @ processed_fields),
            T.TEMP r ))
 
-  let arrayExp (size, init) =
-    Ex (Frame.externalCall ("initArray", [ unEx size; unEx init ]))
+  let arrayExp (size, init) = callStdlibExp ("initArray", [ size; init ])
 
   let findFunctionStaticLink (fn_level, call_level) =
     let rec do_one_level curr_level frame_addr =

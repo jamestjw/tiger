@@ -134,3 +134,11 @@ char *__wrap_getchar() {
     return p;
   }
 }
+
+/* Assert that pointer is non-null */
+void assert_non_null(void *ptr) {
+  if (ptr == NULL) {
+    fprintf(stderr, "Null pointer encountered at runtime.\n");
+    exit(1);
+  }
+}
