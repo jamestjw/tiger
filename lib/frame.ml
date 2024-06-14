@@ -74,6 +74,8 @@ module type FRAME = sig
 
   val fn_prolog_epilog_to_string :
     fn_prolog_epilog -> register_map:register Temp.tbl -> string
+
+  val string : Symbol.symbol -> string -> string
 end
 
 (* TODO: Implement this if we really want to target the x86 architecture *)
@@ -440,6 +442,39 @@ module RiscVFrame : FRAME = struct
         ~init:"" ~f:( ^ )
     in
     { prolog; body; epilog }
+
+  (* Instruction to generate a string with a label. *)
+  let string label str =
+    let label = Symbol.name label in
+    let strlen = String.length str in
+    (* We are aligning this to 8, i.e. .align 3 (power of 2)*)
+    let padding = 8 - (strlen % 8) in
+    (* +8 because the first 8 bytes is used for the string length *)
+    let preamble =
+      Printf.sprintf
+        " \t.globl\t%s\n\
+         \t.data\n\
+         \t.align\t3\n\
+         \t.type\t%s, @object\n\
+         \t.size\t%s, %d\n\
+         %s:\n\
+         \t.dword\t%d\n"
+        label label label
+        (8 + strlen + padding)
+        label strlen
+    in
+    let body =
+      String.to_list @@ Stdlib.Scanf.unescaped str
+      |> List.map ~f:(fun c ->
+             Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
+      |> String.concat ~sep:"\n"
+    in
+    let postamble =
+      if padding > 0 then Printf.sprintf "\n\t.zero\t%d\n" padding else "\n"
+    in
+    preamble ^ body ^ postamble
+
+  (* Start of tests *)
 
   let%test_unit "test_all_escape_formals" =
     let frame =

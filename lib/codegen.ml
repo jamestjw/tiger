@@ -9,7 +9,6 @@ module T = Tree
 
 module type CODEGEN = sig
   val codegen : Frame.frame -> Tree.stm -> Assem.instr list
-  val generateString : Assem.label -> string -> Assem.instr
 
   (* For now, the below 2 functions are used to load and store spills *)
   val generate_store : Temp.temp * Frame.access -> Assem.instr
@@ -338,15 +337,6 @@ module RiscVGen : CODEGEN = struct
     munchStm stm;
     List.rev !ilist
 
-  let generateString lab str =
-    A.LABEL
-      {
-        assem =
-          Printf.sprintf "\t.section\t.rodata\n%s:\n\t.string \"%s\"\n"
-            (A.label_to_string lab) str;
-        lab;
-      }
-
   let generate_store (temp, access) =
     match access with
     | Frame.InFrame offset ->
@@ -388,8 +378,7 @@ module RiscVGen : CODEGEN = struct
 
   let generateFrag = function
     | Frame.PROC { body; frame } -> generateFunctionStm body frame
-    | Frame.STRING (lab, str) ->
-        Assem.format Frame.register_to_string_default (generateString lab str)
+    | Frame.STRING (lab, str) -> Frame.string lab str
 
   let%test_unit "test_codegen_test_files" =
     let test_dir = "../../../tests/codegen/" in
