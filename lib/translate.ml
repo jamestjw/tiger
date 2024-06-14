@@ -70,6 +70,8 @@ module Translate = struct
   type access = level * Frame.access [@@deriving show]
   type frag = Frame.frag
 
+  module StringMap = Stdlib.Map.Make (String)
+
   let outermost =
     {
       depth = 0;
@@ -100,6 +102,7 @@ module Translate = struct
   let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
+  let str_labels : Temp.label StringMap.t ref = ref StringMap.empty
 
   let rec seq = function
     | [ a ] -> a
@@ -160,8 +163,15 @@ module Translate = struct
   let stringExp s =
     (* Create a new label and attach a string with this
        label to the fragment list *)
-    let lab = Temp.new_label () in
-    frags := Frame.STRING (lab, s) :: !frags;
+    let lab =
+      match StringMap.find_opt s !str_labels with
+      | Some l -> l
+      | None ->
+          let lab = Temp.new_label () in
+          frags := Frame.STRING (lab, s) :: !frags;
+          str_labels := StringMap.add s lab !str_labels;
+          lab
+    in
     Ex (T.NAME lab)
 
   let binOpPlus e1 e2 = Tree.BINOP (Tree.PLUS, e1, e2)
@@ -411,5 +421,8 @@ module Translate = struct
     ()
 
   let getResult () = !frags
-  let init () = frags := []
+
+  let init () =
+    frags := [];
+    str_labels := StringMap.empty
 end
