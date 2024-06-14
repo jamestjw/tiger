@@ -203,8 +203,7 @@ module Liveness = struct
 
   (* Given an interference graph, return the degree of a certain temporary,
      i.e. how many other temporaries it interferes with. *)
-  let degree (ig : igraph) (t : Temp.temp) =
-    let (IGRAPH { graph; tnode; _ }) = ig in
+  let degree (IGRAPH { graph; tnode; _ }) (t : Temp.temp) =
     (* Relies on the fact that the adjacent list contains no duplicates *)
     List.length @@ IGraph.adj (tnode t)
 end

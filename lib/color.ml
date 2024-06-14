@@ -551,11 +551,11 @@ module Color = struct
 
   let select_spill
       ({ spill_worklist; node_location; simplify_worklist; _ } as state)
-      (spill_cost : Temp.temp -> int) k =
+      (spill_cost : Temp.temp -> float) k =
     let spills =
       Doubly_linked.to_list spill_worklist
       |> List.sort ~compare:(fun e1 e2 ->
-             compare (spill_cost e1) (spill_cost e2))
+             Float.compare (spill_cost e1) (spill_cost e2))
     in
     match spills with
     | m :: _ -> (
@@ -710,17 +710,43 @@ module Color = struct
     Doubly_linked.iter spill_worklist ~f:(fun u ->
         assert (temp_tbl_look_exn degree u >= k))
 
+  (* The heuristic that we are using is perhaps overly simple, we simply estimate
+     the cost of spilling a temp to be (#uses + #defs / degree). To improve the
+     heuristic, we should give a greater weight to appearances of the temporary in
+     loops using the 'rule-of-ten', for instance. *)
+  let build_spill_cost_tbl (Flow.FGRAPH { control; def; use; _ }) ig temps
+      degree =
+    let handle_node tbl node =
+      List.fold
+        ~f:(fun tbl temp ->
+          Temp.enter (tbl, temp, Temp.look_default (tbl, temp, 0) + 1))
+        ~init:tbl
+        (Flow.Graph.Table.look_exn (def, node)
+        @ Flow.Graph.Table.look_exn (use, node))
+    in
+    (* Get a set of nodes where each temp is used. *)
+    let def_and_uses =
+      List.fold ~f:handle_node ~init:Temp.empty (Flow.Graph.nodes control)
+    in
+    let spill_cost_tbl =
+      List.fold
+        ~f:(fun tbl t ->
+          let num_def_and_uses =
+            Temp.look_default (def_and_uses, t, 0) |> float_of_int
+          in
+          let degree = Temp.look_exn (degree, t) |> float_of_int in
+          Temp.enter (tbl, t, num_def_and_uses /. degree))
+        ~init:Temp.empty temps
+    in
+    fun t -> Temp.look_default (spill_cost_tbl, t, 0.)
+
   (* The function produces an extension of the initial allocation by
      assigning all temporaries in the interference graph a register
      from the registers list. It also returns a list of spills and
      coalesced nodes. *)
   let color (instrs : Assem.instr list)
-      (* (interference : Liveness.igraph) *)
       (* Precoloring of temporaries imposed by calling conventions *)
         (initial : allocation)
-      (* The cost of spilling each temporary. The simplest implementation
-         that works is a function that always returns 1. *)
-        (spill_cost : Temp.temp -> int)
       (* List of registers/colors *)
         (registers : Frame.register list) : allocation * Temp.temp list =
     (* Num registers is represented by the variable `k` here and in the
@@ -728,6 +754,23 @@ module Color = struct
     let k = List.length registers in
     let precolored =
       Temp.IntMap.bindings initial |> List.map ~f:(fun (e, _) -> e)
+    in
+
+    let flowgraph, flowgraph_nodes = MakeGraph.instrs2graph instrs in
+    let (IGRAPH { graph; gtemp; _ } as igraph), live_out_fn =
+      Liveness.mk_interference_graph flowgraph
+    in
+    (* Filter out temps that are not precolored *)
+    let initial_temps =
+      Liveness.IGraph.nodes graph
+      |> List.map ~f:gtemp
+      |> List.filter ~f:(fun temp ->
+             Temp.look (initial, temp) |> Option.is_none)
+    in
+    let state = build flowgraph initial igraph live_out_fn in
+    check_invariants state precolored k;
+    let spill_cost =
+      build_spill_cost_tbl flowgraph igraph initial_temps state.degree
     in
     (* The `repeat...until` in the book *)
     let rec repeat
@@ -748,22 +791,6 @@ module Color = struct
         select_spill state spill_cost k |> repeat
       else state (* All worklists are empty, this means that we are done *)
     in
-
-    let flowgraph, flowgraph_nodes = MakeGraph.instrs2graph instrs in
-    let (IGRAPH { graph; gtemp; _ } as igraph), live_out_fn =
-      Liveness.mk_interference_graph flowgraph
-    in
-
-    (* Filter out temps that are not precolored *)
-    let initial_temps =
-      Liveness.IGraph.nodes graph
-      |> List.map ~f:gtemp
-      |> List.filter ~f:(fun temp ->
-             Temp.look (initial, temp) |> Option.is_none)
-    in
-
-    let state = build flowgraph initial igraph live_out_fn in
-    check_invariants state precolored k;
     let state = make_worklist state initial_temps k |> repeat in
     let ({ spilled_nodes; coalesced_nodes; _ } as state), allocation =
       assign_colors state initial registers
