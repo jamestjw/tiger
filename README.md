@@ -42,10 +42,10 @@ This command compiles an input `tiger` file and produces a Risc-V assembly file.
 dune exec bin/main.exe -- input.tig -o output.s
 ```
 
-The output file needs to be linked with the runtime library. Here, we use `riscv64-unknown-elf-gcc` as our Risc-V assembler and linker.
+The output file needs to be linked with the runtime library. Here, we use `riscv64-unknown-elf-gcc` as our Risc-V assembler and linker. We also remap the `getchar` and `strcmp` functions using a wrapper, i.e. redirecting calls to these functions to our version of them.
 
 ```bash
-riscv64-unknown-elf-gcc output.s btl/runtime.c -Wl,--wrap=getchar -o ./a.out
+riscv64-unknown-elf-gcc output.s btl/runtime.c -Wl,--wrap=getchar,--wrap=strcmp -o ./a.out
 ```
 
 On a machine that does not run on the Risc-V architecture, we may run the executable using `spike`.

@@ -253,7 +253,8 @@ module Translate = struct
     match (left_type, right_type, op) with
     | Types.INT, Types.INT, op ->
         Some (Cx (fun (t, f) -> T.CJUMP (op, unEx left, unEx right, t, f)))
-    | (Types.NIL | Types.RECORD _), (Types.RECORD _ | Types.NIL), (T.EQ | T.NE) ->
+    | (Types.NIL | Types.RECORD _), (Types.RECORD _ | Types.NIL), (T.EQ | T.NE)
+      ->
         Some (Cx (fun (t, f) -> T.CJUMP (op, unEx left, unEx right, t, f)))
     | Types.STRING, Types.STRING, op ->
         let cmp_res = callStdlibExp ("strcmp", [ left; right ]) in

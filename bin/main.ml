@@ -4,7 +4,6 @@ open Semant
 open Canon
 open Codegen
 open Base
-open Assem
 open Frame
 open Regalloc
 
@@ -34,9 +33,7 @@ let generateFunctionStm stm frame =
 
 let generateFrag = function
   | Frame.PROC { body; frame } -> generateFunctionStm body frame
-  | Frame.STRING (lab, str) ->
-      Assem.format Frame.register_to_string_default
-        (RiscVGen.generateString lab str)
+  | Frame.STRING (lab, str) -> Frame.string lab str
 
 (* TODO: Use a more reliable library to handle this *)
 let main () =
