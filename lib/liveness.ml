@@ -282,10 +282,9 @@ let%test_unit "interference_graph_simple_block" =
       ]
   in
   let flowgraph = Flow.FGRAPH { control = graph; def; use; ismove } in
-  let (IGRAPH { graph; tnode; gtemp; moves } as igraph), live_out_fn =
+  let IGRAPH { graph; tnode; gtemp; moves }, live_out_fn =
     Liveness.mk_interference_graph flowgraph
   in
-  Liveness.show igraph;
   let open Base in
   [%test_eq: bool] true
     (List.exists

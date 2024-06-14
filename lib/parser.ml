@@ -29,14 +29,32 @@ let parse_file fname =
 
 open Base
 
+exception Unexpected_error
+exception Missing_error
+
 let%expect_test "successfully_parse_test_files" =
-  ignore
-    (let test_dir = "../../../tests/" in
-     Stdlib.Sys.readdir test_dir
-     |> Array.to_list
-     |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
-     |> List.map ~f:(fun fname -> parse_file (test_dir ^ fname)));
-  [%expect]
+  let test_dir = "../../../tests/parse/" in
+  let do_file fname =
+    let first_line =
+      In_channel.with_open_text fname In_channel.input_line |> Stdlib.Option.get
+    in
+    let expecting_error =
+      Str.string_match (Str.regexp "^.*error.*") first_line 0
+    in
+    try
+      ignore @@ parse_file fname;
+      if expecting_error then (
+        Stdio.printf "Parsing '%s' did not fail." fname;
+        raise Missing_error)
+    with Parse_error -> if expecting_error then () else raise Unexpected_error
+  in
+
+  Stdlib.Sys.readdir test_dir
+  |> Array.to_list
+  |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
+  |> List.map ~f:(fun x -> test_dir ^ x)
+  |> List.iter ~f:do_file;
+  [%expect {| ../../../tests/parse/test49.tig:5.20: Syntax error |}]
 
 let%test_unit "produce_ast_simple_binary_exp_with_ints" =
   [%test_eq: A.exp] (parse_string "1 + 2")

@@ -1,0 +1,9 @@
+let
+  var i := 0
+  var max := 9
+in
+  /* 1 is truthy */
+  for i := 0 to 100 do
+    (print(chr(ord("0") + i)); if i = max then break)
+end
+

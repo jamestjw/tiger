@@ -1,0 +1,5 @@
+let
+	function g(a:int) = a
+in 
+	g(2)
+end

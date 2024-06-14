@@ -1,0 +1,13 @@
+(library
+ (name test_lib)
+ (libraries core stdio expect_test_helpers_core tiger)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test ppx_assert ppx_expect ppx_sexp_value)))
+
+(env
+ (dev
+  (flags
+   ; Disabled warnings
+   ; 30: duplicate-definitions (We use similar names in some record fields)
+   (:standard -w -30-27))))

@@ -23,6 +23,7 @@
   dune
   stdio
   base
+  core
   ppx_inline_test
   ppx_assert
   ppx_expect

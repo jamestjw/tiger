@@ -6,6 +6,6 @@ let
   function printA() =
     print(a)
 in
-  printA()
+  printA(); print("\n")
 end
 

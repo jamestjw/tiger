@@ -31,10 +31,9 @@ module ErrorMsg : ERRORMSG = struct
   let error lexbuf (msg : string) =
     anyErrors := true;
     let pos = lexbuf.Lexing.lex_curr_p in
-    print_string pos.pos_fname;
-    Stdio.printf ":%d.%d: " pos.pos_lnum (pos.pos_cnum - pos.pos_bol);
-    print_string msg;
-    print_endline ""
+    Printf.fprintf stderr "%s:%d.%d: %s\n" pos.pos_fname pos.pos_lnum
+      (pos.pos_cnum - pos.pos_bol)
+      msg
 
   let error_pos pos (msg : string) =
     let rec look = function
@@ -47,9 +46,11 @@ module ErrorMsg : ERRORMSG = struct
     anyErrors := true;
     (* TODO: Fix wrong line*)
     (* List.iter (Stdio.printf "%d ") !line_pos;Stdio.printf "\n"; *)
-    Stdio.printf "%s:%s: %s\n" !fileName (look (!line_pos, !line_num)) msg
+    Printf.fprintf stderr "%s:%s: %s\n" !fileName
+      (look (!line_pos, !line_num))
+      msg
 
   let impossible msg =
-    print_string ("Error: Compiler bug: " ^ msg ^ "\n");
+    Printf.fprintf stderr "Error: Compiler bug: %s\n" msg;
     raise Error
 end
