@@ -83,8 +83,7 @@ module RegAlloc = struct
         Temp.IntMap.bindings initial_allocation |> List.map ~f:(fun (_, e) -> e)
       in
       let allocation, spills =
-        (* TODO: Use better spill cost *)
-        Color.color instrs initial_allocation (fun _ -> 1) registers
+        Color.color instrs initial_allocation registers
       in
 
       if List.is_empty spills then
