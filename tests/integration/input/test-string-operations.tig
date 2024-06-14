@@ -1,4 +1,4 @@
-/* Test stdlib functions `chr` and `ord`. */
+/* Test string operations. */
 let
   function printint(i: int) =
     let function f (i:int) =
@@ -13,8 +13,15 @@ let
         print("0")
     end
 
+  var s := "Hello world!"
 in
-	printint(ord(chr(97))); print("\n");
-	print(chr(ord("a")))
+  /* Expected: 12 */
+	printint(size(s)); print("\n");
+
+  /* Expected: world */
+  print(substring(s, 6, 5)); print("\n");
+
+  /* Expected: Hello world!Hello world! */
+  print(concat(s, s)); print("\n")
 end
 

@@ -170,7 +170,6 @@ let%test_unit "make_graph_simple_block" =
   let flowgraph, nodes =
     MakeGraph.instrs2graph (List.map ~f:(fun (instr, _) -> instr) instrs)
   in
-  Flow.show flowgraph;
   List.iter2_exn nodes instrs ~f:(fun node (instr, ismove) ->
       [%test_eq: bool]
         (let (Flow.FGRAPH { ismove = ismove_tbl; _ }) = flowgraph in
@@ -201,5 +200,5 @@ let%expect_test "make_graph_jump_to_undefined_label" =
   require_does_raise [%here] (fun () -> MakeGraph.instrs2graph instrs);
   [%expect
     {|
-    Error: Compiler bug: Jumped to undefined label(s): L1
-    (Tiger.Errormsg.ErrorMsg.Error) |}]
+    (Tiger.Errormsg.ErrorMsg.Error)
+    Error: Compiler bug: Jumped to undefined label(s): L1 |}]

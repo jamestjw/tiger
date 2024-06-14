@@ -3,6 +3,7 @@ open Env
 open Symbol
 open Types
 open Absyn
+open Tree
 open Translate
 open Temp
 open Errormsg
@@ -627,10 +628,13 @@ module Semant : SEMANT = struct
         ~name:(Temp.named_label "tigermain")
         ~parent:Translate.outermost ~formals:[] ~static:false
     in
-    let res_expty =
+    let { exp; _ } =
       transExp (E.base_venv, E.base_tenv, base_senv, main_level, exp)
     in
-    Translate.procEntryExit (res_expty.exp, main_level);
+    (* We want the final expression to be 0 as this will be the return code of
+       the main function. *)
+    let exp = Translate.Ex (Tree.ESEQ (Translate.unNx exp, Tree.CONST 0)) in
+    Translate.procEntryExit (exp, main_level);
     if !ErrorMsg.anyErrors then raise Semantic_error else Translate.getResult ()
 end
 

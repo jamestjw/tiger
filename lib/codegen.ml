@@ -382,18 +382,20 @@ module RiscVGen : CODEGEN = struct
 
   let%test_unit "test_codegen_test_files" =
     let test_dir = "../../../tests/codegen/" in
-    Stdlib.Sys.readdir test_dir
+    let input_dir = test_dir ^ "input/" in
+    let expected_dir = test_dir ^ "expected/" in
+    Stdlib.Sys.readdir input_dir
     |> Array.to_list
     |> List.filter ~f:(fun x -> String.(Stdlib.Filename.extension x = ".tig"))
     |> List.iter ~f:(fun fname ->
            let expected_fname =
-             test_dir ^ Stdlib.Filename.chop_extension fname ^ ".s"
+             expected_dir ^ Stdlib.Filename.chop_extension fname ^ ".s"
            in
            let expected =
              In_channel.with_open_bin expected_fname In_channel.input_all
            in
            let frags =
-             Semant.transProg (Parser.parse_file (test_dir ^ fname))
+             Semant.transProg (Parser.parse_file (input_dir ^ fname))
            in
            let res =
              List.map ~f:generateFrag frags |> List.fold ~init:"" ~f:( ^ )

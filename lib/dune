@@ -3,6 +3,7 @@
  (libraries
   base
   core
+  core_unix
   stdio
   str
   batteries

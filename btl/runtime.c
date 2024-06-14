@@ -82,7 +82,7 @@ struct tigerstr *substring(const struct tigerstr *s, int64_t first, int64_t n) {
 
   // Ensure `first` and `n` are within bounds.
   if (first < 0 || first + n > s->length) {
-    printf("substring([%lld],%lld,%lld) out of range\n", s->length, first, n);
+    fprintf(stderr, "substring([%lld],%lld,%lld) out of range\n", s->length, first, n);
     exit(1);
   }
 
