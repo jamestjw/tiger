@@ -20,6 +20,7 @@
   "Implementing a compiler for tiger as described in the book Modern Compiler Implementation in ML by Andrew Appel.")
  (depends
   ocaml
+  core_unix
   dune
   stdio
   base
@@ -27,6 +28,9 @@
   ppx_inline_test
   ppx_assert
   ppx_expect
+  ppx_show
+  ppx_deriving
+  expect_test_helpers_core
   batteries)
  (tags
   (tiger compiler)))

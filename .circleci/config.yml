@@ -9,14 +9,32 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: ocaml/opam
+      - image: ocaml/opam:ubuntu-lts
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
+      - restore_cache:
+          key: ocaml-cache-{{ checksum "tiger.opam" }}
+      - restore_cache:
+          key: riscv-cache-v3
+      - run:
+          name: "Move Risc-V stuff (to expected directory)"
+          command: "[ -d ~/riscv ] && sudo cp -r ~/riscv /opt || true"
       - run:
           name: "Setup environment"
           command: chmod +x ./.circleci/ci && ./.circleci/ci
+      - run:
+          name: "Move Risc-V stuff (for future caching)"
+          command: sudo cp -r /opt/riscv ~/
+      - save_cache:
+           paths:
+             - ~/.opam
+           key: ocaml-cache-{{ checksum "tiger.opam" }}
+      - save_cache:
+          key: riscv-cache-v3
+          paths:
+            - ~/riscv
       - run:
           name: "Build application"
           command: opam exec -- dune build
