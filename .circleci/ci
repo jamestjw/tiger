@@ -3,7 +3,7 @@
 WORKING_DIR=$(pwd)
 
 # Install some extras
-sudo apt-get install m4 pkg-config -y
+sudo apt-get install m4 pkg-config autoconf device-tree-compiler -y
 
 # Make sure opam is setup in your environment.
 eval `opam config env`
@@ -11,10 +11,61 @@ opam update
 
 # Install each package as a dev dependency
 find . -type f -name '*.opam' | sort -d | while read P; do
-  opam pin add -n "$(basename -s .opam ${P})" . -y --dev
-  opam install --deps-only "$(basename -s .opam ${P})"  -y
+  opam pin add -n "$(basename -s .opam ${P})" . --unlock-base -y --dev
+  opam install --deps-only "$(basename -s .opam ${P})" --unlock-base -y
   eval `opam config env`
 done
 
 # Extra dependencies
 opam install ocamlformat
+
+# Install Risc-V compiler to run tests
+export RISCV=/opt/riscv
+export PATH="$RISCV/bin:$PATH"
+
+if [ -f "$RISCV/bin/riscv64-unknown-elf-gcc" ]; then
+    echo "riscv64-unknown-elf-gcc already installed."
+else
+    echo "riscv64-unknown-elf-gcc not installed, installing now"
+
+    sudo apt install wget -y
+    wget https://github.com/zyedidia/riscv-gnu-toolchain-prebuilt/releases/download/v1/riscv64-unknown-elf-multilib.tar.gz
+    tar -xf riscv64-unknown-elf-multilib.tar.gz
+    rm riscv64-unknown-elf-multilib.tar.gz
+    # install to /opt/riscv
+    sudo mv riscv /opt
+fi
+sudo ln -s /opt/riscv/bin/riscv64-unknown-elf-gcc /usr/local/bin/riscv64-unknown-elf-gcc
+
+# Install Spike
+if [ -f "$RISCV/bin/spike" ]; then
+    echo "spike already installed."
+else
+    echo "spike not installed, installing now"
+
+    git clone https://github.com/riscv-software-src/riscv-isa-sim && cd riscv-isa-sim
+    sudo apt-get install libboost-all-dev -y
+    mkdir build
+    cd build
+    ../configure --prefix=$RISCV
+    make
+    make install
+    cd ../../
+fi
+sudo ln -s /opt/riscv/bin/spike /usr/local/bin/spike
+
+# Install pk
+
+if [ -f "$RISCV/riscv64-unknown-elf/bin/pk" ]; then
+    echo "pk already installed."
+else
+    echo "pk not installed, installing now"
+
+    git clone https://github.com/riscv-software-src/riscv-pk && cd riscv-pk && git checkout 2efabd3
+    mkdir build
+    cd build
+    ../configure --prefix=$RISCV --host=riscv64-unknown-elf
+    make
+    make install
+    cd ../../
+fi
