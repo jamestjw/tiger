@@ -1,8 +1,6 @@
-open Assem
 open Core
 open Frame
 open Flowgraph
-open Makegraph
 open Liveness
 open Temp
 
@@ -744,7 +742,7 @@ module Color = struct
      assigning all temporaries in the interference graph a register
      from the registers list. It also returns a list of spills and
      coalesced nodes. *)
-  let color (instrs : Assem.instr list)
+  let color flowgraph
       (* Precoloring of temporaries imposed by calling conventions *)
         (initial : allocation)
       (* List of registers/colors *)
@@ -756,9 +754,8 @@ module Color = struct
       Temp.IntMap.bindings initial |> List.map ~f:(fun (e, _) -> e)
     in
 
-    let flowgraph, flowgraph_nodes = MakeGraph.instrs2graph instrs in
     let (IGRAPH { graph; gtemp; _ } as igraph), live_out_fn =
-      Liveness.mk_interference_graph flowgraph
+      Liveness.mk_interference_graph_all flowgraph
     in
     (* Filter out temps that are not precolored *)
     let initial_temps =
@@ -792,8 +789,124 @@ module Color = struct
       else state (* All worklists are empty, this means that we are done *)
     in
     let state = make_worklist state initial_temps k |> repeat in
-    let ({ spilled_nodes; coalesced_nodes; _ } as state), allocation =
+    let ({ spilled_nodes; _ } as state), allocation =
       assign_colors state initial registers
     in
     (allocation, Doubly_linked.to_list spilled_nodes)
+
+  module RegisterMap = Stdlib.Map.Make (struct
+    type t = Frame.register
+
+    let compare = Frame.compare_register
+  end)
+
+  (* Allocates stack locations on the frame for a list of spilled temporaries
+     by coloring them, i.e. non-interfering temporaries can be allocated to the
+     same stack location. *)
+  let color_spilled_temps spilled_temps
+      (Flow.FGRAPH { control; use; ismove; def } as fg) frame =
+    let igraph, live_out_fn = Liveness.mk_interference_graph fg spilled_temps in
+    let state =
+      let node_location = Temp.empty in
+      let do_instr
+          ({ move_list; move_src_dest; worklist_moves; move_location; _ } as
+           state) node =
+        let def = Temp.Set.of_list @@ Flow.Graph.Table.look_exn (def, node) in
+        let use = Temp.Set.of_list @@ Flow.Graph.Table.look_exn (use, node) in
+        (* Check if node is a move *)
+        if Flow.Graph.Table.look_exn (ismove, node) then
+          let src, dest =
+            match
+              ( Temp.Set.to_seq use |> Stdlib.List.of_seq,
+                Temp.Set.to_seq def |> Stdlib.List.of_seq )
+            with
+            | [ e1 ], [ e2 ] -> (e1, e2) (* NOTE: The two could be the same. *)
+            | _ -> raise Invalid_node
+          in
+
+          (* Check if src and dest are both spilled *)
+          if Temp.Set.mem src spilled_temps && Temp.Set.mem dest spilled_temps
+          then
+            let move_list =
+              Temp.Set.fold
+                (fun n move_list ->
+                  let l =
+                    Temp.look (move_list, n)
+                    |> Option.value ~default:Flow.Graph.NodeSet.empty
+                  in
+                  let l = Flow.Graph.NodeSet.add node l in
+                  Temp.enter (move_list, n, l))
+                (Temp.Set.union def use) move_list
+            in
+            let ptr = Doubly_linked.insert_last worklist_moves node in
+            {
+              state with
+              move_list;
+              move_location =
+                Flow.Graph.Table.enter (move_location, node, (WORKLIST, ptr));
+              move_src_dest =
+                Flow.Graph.Table.enter (move_src_dest, node, (src, dest));
+            }
+          else state
+        else state
+      in
+
+      (* The order doesn't matter because we do not populate `adj_set` and
+         `adj_list` here. *)
+      let state =
+        List.fold (Flow.Graph.nodes control)
+          ~init:{ (mk_empty_state ()) with node_location }
+          ~f:do_instr
+      in
+      let adj_list = Liveness.adj_list igraph in
+      let degree =
+        Temp.IntMap.bindings adj_list
+        |> List.fold ~init:Temp.empty ~f:(fun tbl (temp, set) ->
+               Temp.enter (tbl, temp, Temp.Set.cardinal set))
+      in
+      { state with adj_set = Liveness.adj_set igraph; adj_list; degree }
+    in
+    let k = Temp.Set.cardinal spilled_temps in
+    (* Simplified `repeat` *)
+    let rec repeat
+        ({
+           simplify_worklist;
+           worklist_moves;
+           freeze_worklist;
+           spill_worklist;
+           _;
+         } as state) =
+      (* No freezing and spilling should be necessary here. *)
+      assert (Doubly_linked.is_empty freeze_worklist);
+      assert (Doubly_linked.is_empty spill_worklist);
+      if not @@ Doubly_linked.is_empty simplify_worklist then
+        simplify state k |> repeat
+      else if not @@ Doubly_linked.is_empty worklist_moves then
+        coalesce state k |> repeat
+      else state (* All worklists are empty, this means that we are done *)
+    in
+    let state =
+      make_worklist state (Temp.Set.to_list spilled_temps) k |> repeat
+    in
+
+    (* TODO: I decided to use this dummy register list strategy to simulate a
+       infinite list of stack locations, it's ugly but it also enables more
+       code reuse. Is there a better way of doing this? *)
+    let ({ spilled_nodes; _ } as state), allocation =
+      assign_colors state Temp.empty (Frame.dummy_register_list k)
+    in
+    (* Spilling is also not expected, given the value of `k`. *)
+    assert (Doubly_linked.is_empty spilled_nodes);
+    let _, temp2access =
+      Temp.tbl_bindings allocation
+      |> List.fold ~init:(RegisterMap.empty, Temp.empty)
+           ~f:(fun (rmap, tmap) (temp, reg) ->
+             match RegisterMap.find_opt reg rmap with
+             | Some access -> (rmap, Temp.enter (tmap, temp, access))
+             | None ->
+                 let access = Frame.alloc_local frame true in
+                 ( RegisterMap.add reg access rmap,
+                   Temp.enter (tmap, temp, access) ))
+    in
+    temp2access
 end

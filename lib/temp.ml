@@ -89,6 +89,8 @@ module Temp = struct
   let look_default (t, temp, default) =
     IntMap.find_opt temp t |> Option.value ~default
 
+  let tbl_bindings = IntMap.bindings
+
   exception Invalid_key
 
   let look_exn e = match look e with Some v -> v | None -> raise Invalid_key

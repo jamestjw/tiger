@@ -47,7 +47,7 @@ module type FRAME = sig
   val zero : Temp.temp
   val externalCall : string * Tree.exp list -> Tree.exp
 
-  type register
+  type register [@@deriving ord]
 
   val special_regs : Temp.temp list
   val arg_regs : Temp.temp list
@@ -57,6 +57,7 @@ module type FRAME = sig
   val register_to_string_default : Temp.temp -> string
   val register_eq : register -> register -> bool
   val get_temp_map : unit -> register Temp.tbl
+  val dummy_register_list : int -> register list
 
   (* Handles the view shift by
      1. Moving incoming formals
@@ -473,6 +474,8 @@ module RiscVFrame : FRAME = struct
       if padding > 0 then Printf.sprintf "\n\t.zero\t%d\n" padding else "\n"
     in
     preamble ^ body ^ postamble
+
+  let dummy_register_list i = List.init i ~f:(fun i -> Printf.sprintf "r%d" i)
 
   (* Start of tests *)
 

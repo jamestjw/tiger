@@ -1,0 +1,42 @@
+let
+  function foo(x1 : int, x2 : int) : int =
+    let
+      var y1 := x1 + 1
+      var y2 := x1 + 1
+      var y3 := x1 + 1
+      var y4 := x1 + 1
+      var y5 := x1 + 1
+      var y6 := x1 + 1
+      var y7 := x1 + 1
+      var y8 := x1 + 1
+      var y9 := x1 + 1
+      var y10 := x1 + 1
+      var y11 := x1 + 1
+    in
+      /* The print is to make the usage of caller-saved registers hard;
+         by forcing the allocator to use only callee-saved registers, the
+         lack of them will cause spills. */
+      print("test\n");
+      if x1 > 0 then
+        let
+          var new_x1 := x1 + 5
+          var z1 := x1 + 10
+          var z2 := x1 + 10
+        in
+          print("using caller-saveds\n");
+          new_x1 + y2 + y3 + y4 + y5 + y6 + y7 + y8 + y9 + y10 + y11 + x1 + x2 + z1 + z2
+        end
+      else
+        let
+          var new_x1 := -x1 + 5
+          var z1 := x1 + 20
+          var z2 := x1 + 20
+        in
+          print("using caller-saveds\n");
+          new_x1 + y2 + y3 + y4 + y5 + y6 + y7 + y8 + y9 + y10 + y11 + x1 + x2 + z1 + z2
+        end
+    end
+in
+  foo(5, 10)
+end
+
