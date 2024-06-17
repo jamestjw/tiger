@@ -101,13 +101,19 @@ module Liveness = struct
       in_out_tbl
 
   (* Returns an interference graph along with a function that returns
-     all the temporaries that are live out of a node in the flowgraph. *)
-  let mk_interference_graph (fg : Flow.flowgraph) :
+     all the temporaries that are live out of a node in the flowgraph.
+     We include temporaries specified in the `only_include` argument in the
+     output graph. *)
+  let mk_interference_graph (fg : Flow.flowgraph) (only_include : Temp.Set.t) :
       igraph * (Flow.Graph.node -> Temp.temp list) =
     let (FGRAPH { control; def; use; ismove }) = fg in
+    let def =
+      IGraph.Table.map (List.filter (fun t -> Temp.Set.mem t only_include)) def
+    in
+    let use =
+      IGraph.Table.map (List.filter (fun t -> Temp.Set.mem t only_include)) use
+    in
     let lm = mkLiveMap fg in
-    let tnode_tbl : IGraph.node Temp.tbl = Temp.empty in
-    let gtemp_tbl : Temp.temp IGraph.Table.tbl = IGraph.Table.empty in
     let get_node (g, tnode_tbl, gtemp_tbl) temp =
       match Temp.look (tnode_tbl, temp) with
       | Some node -> (node, g, tnode_tbl, gtemp_tbl)
@@ -129,6 +135,7 @@ module Liveness = struct
     let live_out_fn (node : Flow.Graph.node) : Temp.temp list =
       Flow.Graph.Table.look (lm, node)
       |> Option.fold ~none:[] ~some:(fun (_, l) -> l)
+      |> List.filter (fun t -> Temp.Set.mem t only_include)
     in
 
     let graph, tnode_tbl, gtemp_tbl, move_list =
@@ -167,7 +174,7 @@ module Liveness = struct
               in
               (g, tn, gt, ml))
             (g, tn, gt, ml) defined_nodes)
-        (IGraph.newGraph (), tnode_tbl, gtemp_tbl, [])
+        (IGraph.newGraph (), Temp.empty, IGraph.Table.empty, [])
         (Flow.Graph.nodes control)
     in
 
@@ -180,6 +187,10 @@ module Liveness = struct
           moves = move_list;
         },
       live_out_fn )
+
+  let mk_interference_graph_all (fg : Flow.flowgraph) :
+      igraph * (Flow.Graph.node -> Temp.temp list) =
+    mk_interference_graph fg (Flow.get_temps fg)
 
   (* Return adjacency set of the interference graph.
      If (u,v) in adj_set then (v, u) in adj_set *)
@@ -283,7 +294,7 @@ let%test_unit "interference_graph_simple_block" =
   in
   let flowgraph = Flow.FGRAPH { control = graph; def; use; ismove } in
   let IGRAPH { graph; tnode; gtemp; moves }, live_out_fn =
-    Liveness.mk_interference_graph flowgraph
+    Liveness.mk_interference_graph_all flowgraph
   in
   let open Base in
   [%test_eq: bool] true
