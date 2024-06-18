@@ -1,0 +1,29 @@
+/* Closure (3 levels) */
+
+let
+  function count(lo : int, hi : int) = 
+    let
+      var curr := lo
+
+      /* Defining a circular counter of sorts, goes from 0 to 9 then
+         wraps back around. */
+      function next() : int =
+        let
+          function incr() =
+            (curr := curr + 1;
+            if curr > hi then curr := lo)
+        in
+          let
+            var res := curr
+          in
+            incr(); res
+          end
+        end
+    in
+      for i := 0 to 20
+      do print(chr(next() + ord("0")))
+    end
+in
+  count(0, 9)
+end
+

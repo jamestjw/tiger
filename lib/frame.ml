@@ -268,6 +268,7 @@ module RiscVFrame : FRAME = struct
         ("a1", Temp.new_temp ());
         ("a2", Temp.new_temp ());
         ("a3", Temp.new_temp ());
+        ("a4", Temp.new_temp ());
         ("a5", Temp.new_temp ());
         ("a6", Temp.new_temp ());
         ("a7", Temp.new_temp ());
@@ -326,7 +327,7 @@ module RiscVFrame : FRAME = struct
                   (Tree.BINOP
                      ( Tree.PLUS,
                        Tree.TEMP fp,
-                       Tree.CONST ((List.length arg_regs - i) * word_size) ))
+                       Tree.CONST ((i - List.length arg_regs) * word_size) ))
           in
 
           if not escape then
@@ -501,7 +502,7 @@ module RiscVFrame : FRAME = struct
       expected
 
   let%test_unit "test_arg_registers_named" =
-    let expected = [ "a0"; "a1"; "a2"; "a3"; "a5"; "a6"; "a7" ] in
+    let expected = [ "a0"; "a1"; "a2"; "a3"; "a4"; "a5"; "a6"; "a7" ] in
     [%test_eq: register list]
       (List.map ~f:register_to_string_default arg_regs)
       expected

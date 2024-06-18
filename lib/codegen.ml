@@ -120,7 +120,6 @@ module RiscVGen : CODEGEN = struct
               emit
                 (A.OPER
                    {
-                     (* TODO: Check if unconditional jump works *)
                      assem = "\tj 'j0\n";
                      src = [];
                      dst = [];
@@ -315,17 +314,12 @@ module RiscVGen : CODEGEN = struct
               (* Include register used in the return list *)
               reg :: munchArgs (i + 1, rest)
           | None ->
-              (* TODO: Verify that this is right *)
-              (* Want to put the arguments in reverse order on the stack *)
-              let offset =
-                Frame.word_size
-                * (i + 1 - List.length Frame.arg_regs - Frame.num_locals frame)
-              in
+              let offset = Frame.word_size * (i - List.length Frame.arg_regs) in
               emit
                 (A.OPER
                    {
                      assem = Printf.sprintf "\tsd 's0, %d('s1)\n" offset;
-                     src = [ munchExp arg; Frame.fp ];
+                     src = [ munchExp arg; Frame.sp ];
                      dst = [];
                      jump = None;
                    });
