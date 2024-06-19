@@ -1,4 +1,11 @@
 (executable
  (public_name tiger)
  (name main)
- (libraries tiger batteries))
+ (libraries
+  tiger
+  batteries
+  core
+  core_unix.command_unix
+  core_unix.filename_unix)
+ (preprocess
+  (pps ppx_jane)))

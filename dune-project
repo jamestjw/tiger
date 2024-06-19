@@ -25,9 +25,7 @@
   stdio
   base
   core
-  ppx_inline_test
-  ppx_assert
-  ppx_expect
+  ppx_jane
   ppx_show
   ppx_deriving
   expect_test_helpers_core
