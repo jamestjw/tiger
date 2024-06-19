@@ -1,14 +1,6 @@
 (library
  (name tiger)
- (libraries
-  base
-  core
-  core_unix
-  stdio
-  str
-  batteries
-  expect_test_helpers_core
-  ppx_show.runtime)
+ (libraries base core core_unix stdio str batteries expect_test_helpers_core)
  (inline_tests)
  (preprocess
   (pps
