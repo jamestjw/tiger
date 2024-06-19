@@ -26,7 +26,6 @@
   base
   core
   ppx_jane
-  ppx_show
   ppx_deriving
   expect_test_helpers_core
   batteries)
