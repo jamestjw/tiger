@@ -20,12 +20,18 @@ let parse_string s =
   let lexbuf = Lexing.from_string s in
   parse lexbuf
 
-let parse_file fname =
+let parse_channel ?filename chan =
   ErrorMsg.reset ();
-  let lexbuf = Lexing.from_channel (Stdio.In_channel.create fname) in
-  Lexing.set_filename lexbuf fname;
-  ErrorMsg.set_filename fname;
+  let lexbuf = Lexing.from_channel chan in
+  (match filename with
+  | Some filename ->
+      Lexing.set_filename lexbuf filename;
+      ErrorMsg.set_filename filename
+  | None -> ());
   parse lexbuf
+
+let parse_file fname =
+  parse_channel ~filename:fname (Stdio.In_channel.create fname)
 
 open Base
 

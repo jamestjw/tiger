@@ -25,11 +25,14 @@ let generateFrag f =
   | Frame.PROC { body; frame } -> generateFunctionStm body frame
   | Frame.STRING (lab, str) -> Frame.string lab str
 
-let compile_file ~filename =
-  let absyn = Parser.parse_file filename in
+let compile_channel ?filename chan =
+  let absyn = Parser.parse_channel ?filename chan in
   let frags =
     FindEscape.find_escape absyn;
     Semant.transProg absyn
   in
 
   List.map frags ~f:generateFrag |> String.concat ~sep:""
+
+let compile_file ~filename =
+  compile_channel ~filename (Stdio.In_channel.create filename)
