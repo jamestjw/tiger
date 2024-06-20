@@ -3,6 +3,7 @@
 #include <string.h>
 
 struct tigerstr {
+  char *tag;
   int64_t length;
   /* This can be infinitely long when we start allocating strings. */
   unsigned char chars[1];
@@ -13,10 +14,12 @@ struct tigerstr {
 extern int tigermain(int);
 
 struct tigerstr consts[256];
-struct tigerstr empty = {0, ""};
+/* Giving this a special tag as we do not want this to be garbage collected. */
+struct tigerstr empty = {"!s", 0, ""};
 
 int main() {
   for (int i = 0; i < 256; i++) {
+    consts[i].tag = "!s";
     consts[i].length = 1;
     consts[i].chars[0] = i;
   }
@@ -31,7 +34,6 @@ void print(struct tigerstr *s) {
 }
 
 int64_t *initArray(int64_t size, int64_t init) {
-  int i;
   int64_t *a = (int64_t *)malloc(size * sizeof(int64_t));
 
   for (int i = 0; i < size; i++)
@@ -41,11 +43,10 @@ int64_t *initArray(int64_t size, int64_t init) {
 }
 
 int *allocRecord(int size) {
-  int i;
   int *p, *a;
   p = a = (int *)malloc(size);
 
-  for (i = 0; i < size; i += sizeof(int))
+  for (int i = 0; i < size; i += sizeof(int))
     *p++ = 0;
 
   return a;
@@ -77,24 +78,27 @@ int64_t size(const struct tigerstr *s) { return s->length; }
 /* Substring of string `s`, starting with character `first`, `n` characters
  * long. Characters are numbered starting at 0. */
 struct tigerstr *substring(const struct tigerstr *s, int64_t first, int64_t n) {
-  int substr_len;
   int64_t s_len = s->length;
 
   // Ensure `first` and `n` are within bounds.
   if (first < 0 || first + n > s->length) {
-    fprintf(stderr, "substring([%lld],%lld,%lld) out of range\n", s->length, first, n);
+    fprintf(stderr, "substring([%lld],%lld,%lld) out of range\n", s->length,
+            first, n);
     exit(1);
   }
 
   if (n == 1)
     return consts + s->chars[first];
   else {
-    struct tigerstr *t = malloc(sizeof(int64_t) + n);
+    struct tigerstr *t = malloc(sizeof(char *) + sizeof(int64_t) + n);
     if (t == NULL) {
       fprintf(stderr, "Failed to allocate memory for `substring`.\n");
       exit(1);
     }
 
+    /* This string needs to be handled by the GC, hence we give it the
+     * 's' tag */
+    t->tag = "s";
     t->length = n;
 
     for (int i = 0; i < n; i++)
@@ -112,12 +116,14 @@ struct tigerstr *concat(struct tigerstr *a, struct tigerstr *b) {
   else {
     int n = a->length + b->length;
 
-    struct tigerstr *t = malloc(sizeof(int) + n);
+    struct tigerstr *t = malloc(sizeof(char *) + sizeof(int) + n);
     if (t == NULL) {
       fprintf(stderr, "Failed to allocate memory for `substring`.\n");
       exit(1);
     }
 
+    /* GC needs to handle this eventually, hence we give it the 's' tag */
+    t->tag = "s";
     t->length = n;
 
     for (int i = 0; i < a->length; i++)
