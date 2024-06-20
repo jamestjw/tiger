@@ -448,27 +448,37 @@ module RiscVFrame : FRAME = struct
   (* Instruction to generate a string with a label. *)
   let string label str =
     let label = Symbol.name label in
-    let strlen = String.length str in
-    (* We are aligning this to 8, i.e. .align 3 (power of 2)*)
+    let new_label = Symbol.name @@ Temp.new_label () in
+    let char_list = String.to_list @@ Stdlib.Scanf.unescaped str in
+    let strlen = List.length char_list in
+    (* We are aligning this to 8, i.e. .align 3 (power of 2) *)
     let padding = 8 - (strlen % 8) in
-    (* +8 because the first 8 bytes is used for the string length *)
+    (* +8 because the first 8 bytes is used for the pointer to the tag *)
+    (* +8 because the next 8 bytes is used for the string length *)
+    (* `!s` is the tag that the runtime uses for strings literals, i.e.
+       don't need to be GC-ed. For convenience, we keep emitting the tag
+       literal, though this should be optimised for sure. *)
     let preamble =
       Printf.sprintf
         " \t.globl\t%s\n\
+         \t.section\t.rodata\n\
+         \t.align\t3\n\
+         %s:\n\
+         \t.string\t\"!s\"\n\
          \t.data\n\
          \t.align\t3\n\
          \t.type\t%s, @object\n\
          \t.size\t%s, %d\n\
          %s:\n\
+         \t.dword\t%s\n\
          \t.dword\t%d\n"
-        label label label
-        (8 + strlen + padding)
-        label strlen
+        label new_label label label
+        (8 + 8 + strlen + padding)
+        label new_label strlen
     in
     let body =
-      String.to_list @@ Stdlib.Scanf.unescaped str
-      |> List.map ~f:(fun c ->
-             Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
+      List.map char_list ~f:(fun c ->
+          Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
       |> String.concat ~sep:"\n"
     in
     let postamble =
