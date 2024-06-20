@@ -46,7 +46,9 @@ let%test_unit _ =
     let cmd_inc, cmd_outc = Core_unix.open_process cmd in
     let cmd_output =
       In_channel.input_lines ~fix_win_eol:true cmd_inc
-      |> List.tl |> Stdlib.Option.get |> String.concat ~sep:"\n" |> sanitise
+      |> List.tl |> Stdlib.Option.get
+      |> List.map ~f:(fun s -> s ^ "\n")
+      |> String.concat ~sep:"" |> sanitise
     in
     (match Core_unix.close_process (cmd_inc, cmd_outc) with
     | Ok _ ->
