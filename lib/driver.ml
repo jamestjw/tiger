@@ -23,7 +23,8 @@ let generateFrag f =
   in
   match f with
   | Frame.PROC { body; frame } -> generateFunctionStm body frame
-  | Frame.STRING (lab, str) -> Frame.string lab str
+  | Frame.STRING (lab, str) -> Frame.string_obj lab str
+  | Frame.STRING_LIT (lab, str) -> Frame.string_lit lab str
 
 let compile_channel ?filename chan =
   let absyn = Parser.parse_channel ?filename chan in

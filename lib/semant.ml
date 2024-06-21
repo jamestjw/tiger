@@ -195,8 +195,11 @@ module Semant : SEMANT = struct
                         ~init:[] fields
                       |> List.rev
                     in
+                    let is_ptr_list =
+                      List.map ~f:(fun (_, ty) -> Types.is_ptr ty) fields
+                    in
                     {
-                      exp = Translate.recordExp input_field_exps;
+                      exp = Translate.recordExp input_field_exps is_ptr_list;
                       ty = record_type;
                     }
               | _ ->
