@@ -39,6 +39,8 @@ module Types = struct
     | NIL, RECORD _ -> true
     | RECORD _, NIL -> true
     | _ -> false
+
+  let is_ptr = function RECORD _ | ARRAY _ | STRING -> true | _ -> false
 end
 
 open Base
