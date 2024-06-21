@@ -102,7 +102,8 @@ module Translate = struct
   let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
-  let str_labels : Temp.label StringMap.t ref = ref StringMap.empty
+  let str_obj_labels : Temp.label StringMap.t ref = ref StringMap.empty
+  let str_lit_labels : Temp.label StringMap.t ref = ref StringMap.empty
 
   let rec seq = function
     | [ a ] -> a
@@ -164,15 +165,26 @@ module Translate = struct
     (* Create a new label and attach a string with this
        label to the fragment list *)
     let lab =
-      match StringMap.find_opt s !str_labels with
+      match StringMap.find_opt s !str_obj_labels with
       | Some l -> l
       | None ->
           let lab = Temp.new_label () in
           frags := Frame.STRING (lab, s) :: !frags;
-          str_labels := StringMap.add s lab !str_labels;
+          str_obj_labels := StringMap.add s lab !str_obj_labels;
           lab
     in
     Ex (T.NAME lab)
+
+  (* Generate label for a string literal, this generates an actual literal
+     in assembly and not a tiger string object. *)
+  let stringLiteral s =
+    match StringMap.find_opt s !str_lit_labels with
+    | Some l -> l
+    | None ->
+        let lab = Temp.new_label () in
+        frags := Frame.STRING_LIT (lab, s) :: !frags;
+        str_obj_labels := StringMap.add s lab !str_lit_labels;
+        lab
 
   let binOpPlus e1 e2 = Tree.BINOP (Tree.PLUS, e1, e2)
   let binOpMul e1 e2 = Tree.BINOP (Tree.MUL, e1, e2)
@@ -256,8 +268,10 @@ module Translate = struct
            (* TODO: We manually did the constant folding here, though it
               wouldn't been necessary if the compiler implemented constant
               folding as an optimisation. *)
+           (* +1 because the first slot is used for the tag *)
            T.MEM
-             (binOpPlus (T.TEMP r) (T.CONST (Frame.word_size * field_index))) ))
+             (binOpPlus (T.TEMP r)
+                (T.CONST (Frame.word_size * (field_index + 1)))) ))
 
   let assignExp (var, exp) = Nx (T.MOVE (unEx var, unEx exp))
 
@@ -341,10 +355,12 @@ module Translate = struct
            T.LABEL end_label;
          ])
 
-  let recordExp fields =
-    let num_fields = List.length fields in
-    let record_size = num_fields * Frame.word_size in
+  let recordExp field_exps is_ptr_list =
     let r = Temp.new_temp () in
+    let tag_label =
+      List.map (fun e -> if e then "p" else "n") is_ptr_list
+      |> String.concat "" |> stringLiteral
+    in
     let _, processed_fields =
       List.fold_left
         (fun (idx, fs) field ->
@@ -353,8 +369,9 @@ module Translate = struct
               ( T.MEM (binOpPlus (T.TEMP r) (T.CONST (idx * Frame.word_size))),
                 unEx field )
             :: fs ))
-        (0, []) fields
+        (1, []) field_exps (* Start from 1 as the first slot is for the tag *)
     in
+
     Ex
       (T.ESEQ
          ( seq
@@ -362,7 +379,8 @@ module Translate = struct
                 T.MOVE
                   ( T.TEMP r,
                     unEx
-                    @@ callStdlibExp ("malloc", [ Ex (T.CONST record_size) ]) );
+                    @@ callStdlibExp ("allocRecord", [ Ex (T.NAME tag_label) ])
+                  );
               ]
              @ processed_fields),
            T.TEMP r ))
@@ -460,5 +478,6 @@ module Translate = struct
 
   let init () =
     frags := [];
-    str_labels := StringMap.empty
+    str_obj_labels := StringMap.empty;
+    str_lit_labels := StringMap.empty
 end

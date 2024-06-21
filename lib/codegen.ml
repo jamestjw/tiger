@@ -372,7 +372,8 @@ module RiscVGen : CODEGEN = struct
 
   let generateFrag = function
     | Frame.PROC { body; frame } -> generateFunctionStm body frame
-    | Frame.STRING (lab, str) -> Frame.string lab str
+    | Frame.STRING (lab, str) -> Frame.string_obj lab str
+    | Frame.STRING_LIT (lab, str) -> Frame.string_lit lab str
 
   let%test_unit "test_codegen_test_files" =
     let test_dir = "../../../tests/codegen/" in
