@@ -349,7 +349,9 @@ module Semant : SEMANT = struct
                         "array initial value expected to be of type %s"
                         (Types.to_string t) );
                   {
-                    exp = Translate.arrayExp (size_expty.exp, init_expty.exp);
+                    exp =
+                      Translate.arrayExp
+                        (size_expty.exp, init_expty.exp, Types.is_ptr t);
                     ty = ty';
                   }
               | _ -> { exp = Translate.default_exp; ty = Types.INT })
