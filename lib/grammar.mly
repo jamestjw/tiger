@@ -18,11 +18,11 @@
 %token AND OR ASSIGN
 %token ARRAY IF THEN ELSE WHILE FOR TO DO LET IN END OF
 %token BREAK NIL
-%token FUNCTION VAR TYPE
+%token FUNCTION VAR TYPE NEW
 %token EOF
 
 /* Used to resolve shift-reduce conflict (dangling else) */
-%left LOW_PREC /* Used to resolve shift-reduce conflicts (TODO: Find a better name) */
+%nonassoc LOW_PREC /* Used to resolve shift-reduce conflicts (TODO: Find a better name) */
 %nonassoc THEN
 %nonassoc ELSE
 
@@ -33,7 +33,8 @@
 %left PLUS MINUS
 %left TIMES DIVIDE
 %left NEG  /* negation -- unary minus */
-%left LBRACK LPAREN DOT /* Array access and fncall */
+%left DOT LBRACK /* Array access and record field access */
+%nonassoc LPAREN
 
 %start input
 %type <A.exp> input
@@ -166,11 +167,11 @@ exp: STRING { A.StringExp ($1, (get_pos_cnum ())) }
     | funcall { $1 }
     | var { A.VarExp $1 }
     /* Initialising new array */
-    | ID LBRACK exp RBRACK OF exp %prec LOW_PREC {
+    | NEW ID LBRACK exp RBRACK OF exp %prec LOW_PREC {
         A.ArrayExp {
-            typ = (Symbol.to_symbol $1); 
-            size = $3;
-            init = $6;
+            typ = (Symbol.to_symbol $2); 
+            size = $4;
+            init = $7;
             pos = (get_pos_cnum ())
         }
      }
@@ -200,15 +201,15 @@ var: var DOT ID {
         (get_pos_cnum ()))
     }
     /* Indexing into array */
-    | ID LBRACK exp RBRACK {
+    | var LBRACK exp RBRACK %prec LOW_PREC {
         A.SubscriptVar (
-            (A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum_of_n 1))),
+            $1,
             $3,
             (get_pos_cnum ()))
      }
-    | ID %prec LOW_PREC { A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ())) }
+    | ID { A.SimpleVar ((Symbol.to_symbol $1), (get_pos_cnum ())) }
 
-assignment: var ASSIGN exp { 
+assignment: var ASSIGN exp {
     AssignExp { var = $1; exp = $3; pos = (get_pos_cnum ()) }
  }
 
@@ -217,10 +218,10 @@ while_stmt: WHILE exp DO exp %prec LOW_PREC {
 }
 
 /* Conflict resolution of shifting gives the desired behaviour */
-if_stmt: IF exp THEN exp{
+if_stmt: IF exp THEN exp {
        A.IfExp { test = $2; then' = $4; else' = None; pos = (get_pos_cnum ()) }
      }
-    | IF exp THEN exp ELSE exp { 
+    | IF exp THEN exp ELSE exp {
         A.IfExp { test = $2; then' = $4; else' = Some $6; pos = (get_pos_cnum ()) }
      }
 
@@ -297,6 +298,7 @@ let sexp_of_token t =
   | VAR -> Base.Sexp.List [ Base.Sexp.Atom "VAR" ]
   | TYPE -> Base.Sexp.List [ Base.Sexp.Atom "TYPE" ]
   | EOF -> Base.Sexp.List [ Base.Sexp.Atom "EOF" ]
+  | NEW -> Base.Sexp.List [ Base.Sexp.Atom "NEW" ]
 
 let compare_token t1 t2 =
   if Base.Poly.(t1 = t2) then 0

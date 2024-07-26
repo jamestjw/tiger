@@ -1,6 +1,6 @@
 let
 	type string_arr = array of string
-	var a : string_arr := string_arr [10] of ""
+	var a : string_arr := new string_arr [10] of ""
 in
   for i := 0 to 9 do
     let

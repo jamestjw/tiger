@@ -9,12 +9,12 @@ type rectype2 = {name : string, dates: arrtype1}
 
 type arrtype3 = array of string
 
-var arr1 := arrtype1 [10] of 0
-var arr2  := arrtype2 [5] of rectype1 {name="aname", address="somewhere", id=0, age=0}
-var arr3:arrtype3 := arrtype3 [100] of ""
+var arr1 :=  new arrtype1 [10] of 0
+var arr2  := new arrtype2 [5] of rectype1 {name="aname", address="somewhere", id=0, age=0}
+var arr3:arrtype3 := new arrtype3 [100] of ""
 
 var rec1 := rectype1 {name="Kapoios", address="Kapou", id=02432, age=44}
-var rec2 := rectype2 {name="Allos", dates= arrtype1 [3] of 1900}
+var rec2 := rectype2 {name="Allos", dates= new arrtype1 [3] of 1900}
 
 in
 
