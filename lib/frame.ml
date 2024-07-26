@@ -17,6 +17,7 @@ module type FRAME = sig
   type frag =
     | PROC of { body : Tree.stm; frame : frame }
     | STRING of Temp.label * string
+    | STRING_LIT of Temp.label * string
 
   val new_frame : new_frame_args -> frame
   val name : frame -> Temp.label
@@ -76,7 +77,8 @@ module type FRAME = sig
   val fn_prolog_epilog_to_string :
     fn_prolog_epilog -> register_map:register Temp.tbl -> string
 
-  val string : Symbol.symbol -> string -> string
+  val string_obj : Symbol.symbol -> string -> string
+  val string_lit : Symbol.symbol -> string -> string
 end
 
 (* TODO: Implement this if we really want to target the x86 architecture *)
@@ -192,6 +194,7 @@ module RiscVFrame : FRAME = struct
   type frag =
     | PROC of { body : Tree.stm; frame : frame }
     | STRING of Temp.label * string
+    | STRING_LIT of Temp.label * string
 
   let word_size = 8
 
@@ -445,30 +448,42 @@ module RiscVFrame : FRAME = struct
     in
     { prolog; body; epilog }
 
-  (* Instruction to generate a string with a label. *)
-  let string label str =
+  (* Instruction to generate a string literal with a label. *)
+  let string_lit label str =
+    Printf.sprintf "\t.section\t.rodata\n\t.align\t3\n%s:\n\t.string\t\"%s\"\n"
+      (Symbol.name label) str
+
+  (* Instruction to generate a string object with a label. *)
+  let string_obj label str =
     let label = Symbol.name label in
-    let strlen = String.length str in
-    (* We are aligning this to 8, i.e. .align 3 (power of 2)*)
+    let tag_label = Temp.new_label () in
+    let char_list = String.to_list @@ Stdlib.Scanf.unescaped str in
+    let tag_code = string_lit tag_label "!s" in
+    let strlen = List.length char_list in
+    (* We are aligning this to 8, i.e. .align 3 (power of 2) *)
     let padding = 8 - (strlen % 8) in
-    (* +8 because the first 8 bytes is used for the string length *)
+    (* +8 because the first 8 bytes is used for the pointer to the tag *)
+    (* +8 because the next 8 bytes is used for the string length *)
+    (* `!s` is the tag that the runtime uses for strings literals, i.e.
+       don't need to be GC-ed. For convenience, we keep emitting the tag
+       literal, though this should be optimised for sure. *)
     let preamble =
       Printf.sprintf
-        " \t.globl\t%s\n\
-         \t.data\n\
+        "\t.globl\t%s\n\
+         %s\t.data\n\
          \t.align\t3\n\
          \t.type\t%s, @object\n\
          \t.size\t%s, %d\n\
          %s:\n\
+         \t.dword\t%s\n\
          \t.dword\t%d\n"
-        label label label
-        (8 + strlen + padding)
-        label strlen
+        label tag_code label label
+        (8 + 8 + strlen + padding)
+        label (Symbol.name tag_label) strlen
     in
     let body =
-      String.to_list @@ Stdlib.Scanf.unescaped str
-      |> List.map ~f:(fun c ->
-             Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
+      List.map char_list ~f:(fun c ->
+          Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
       |> String.concat ~sep:"\n"
     in
     let postamble =
