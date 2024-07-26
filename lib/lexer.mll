@@ -29,6 +29,7 @@
             ("or", Grammar.OR);
             ("and", Grammar.AND);
             ("nil", Grammar.NIL);
+            ("new", Grammar.NEW);
         ]
 
     let incr_linenum lexbuf =

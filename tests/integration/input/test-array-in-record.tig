@@ -2,16 +2,14 @@ let
   type string_arr = array of string
   type person = { name : string, phone_numbers : string_arr }
 
-  var me : person := person { name = "James", phone_numbers = string_arr [3] of "" }
-  /* FIXME: Modify the grammar such that we can use the `me.phone_numbers[i]`
-     syntax*/
-  var phone_numbers : string_arr := me.phone_numbers
+  var me : person := person { name = "James", phone_numbers = new string_arr [3] of "" }
+
 in
-  phone_numbers[0] := "phone1\n";
-  phone_numbers[1] := "phone2\n";
-  phone_numbers[2] := "phone3\n";
-  print(phone_numbers[0]);
-  print(phone_numbers[1]);
-  print(phone_numbers[2])
+  me.phone_numbers[0] := "phone1\n";
+  me.phone_numbers[1] := "phone2\n";
+  me.phone_numbers[2] := "phone3\n";
+  print(me.phone_numbers[0]);
+  print(me.phone_numbers[1]);
+  print(me.phone_numbers[2])
 end
 
