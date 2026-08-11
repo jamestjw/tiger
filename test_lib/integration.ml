@@ -30,6 +30,20 @@ let%test_unit _ =
       In_channel.with_file ~f:In_channel.input_all expected_fname
     in
     let output = Driver.compile_file ~filename:full_fname in
+    let pk_file =
+      let rec find = function
+        | [] -> None
+        | dir :: rest ->
+            let candidate = Stdlib.Filename.concat dir "pk" in
+            if Stdlib.Sys.file_exists candidate then Some candidate else find rest
+      in
+      match Stdlib.Sys.getenv_opt "PATH" with
+      | None -> failwith "Could not find `pk` on PATH"
+      | Some path ->
+          match find (String.split_on_chars ~on:[':'] path) with
+          | Some pk -> pk
+          | None -> failwith "Could not find `pk` on PATH"
+    in
     let outc =
       Stdio.Out_channel.create output_asm_fname ~append:false
         ~fail_if_exists:false
@@ -39,14 +53,15 @@ let%test_unit _ =
     let cmd =
       Printf.sprintf
         "riscv64-unknown-elf-gcc %s %s -Wl,--wrap=getchar,--wrap=strcmp -o %s \
-         && spike pk %s"
-        output_asm_fname runtime_file output_bin_fname output_bin_fname
+         && spike %s %s"
+        output_asm_fname runtime_file output_bin_fname pk_file output_bin_fname
     in
 
     let cmd_inc, cmd_outc = Core_unix.open_process cmd in
     let cmd_output =
-      In_channel.input_lines ~fix_win_eol:true cmd_inc
-      |> List.tl |> Stdlib.Option.get |> String.concat ~sep:"\n" |> sanitise
+      match In_channel.input_lines ~fix_win_eol:true cmd_inc with
+      | [] -> ""
+      | _ :: lines -> String.concat ~sep:"\n" lines |> sanitise
     in
     (match Core_unix.close_process (cmd_inc, cmd_outc) with
     | Ok _ ->
