@@ -35,14 +35,15 @@ let%test_unit _ =
         | [] -> None
         | dir :: rest ->
             let candidate = Stdlib.Filename.concat dir "pk" in
-            if Stdlib.Sys.file_exists candidate then Some candidate else find rest
+            if Stdlib.Sys.file_exists candidate then Some candidate
+            else find rest
       in
       match Stdlib.Sys.getenv_opt "PATH" with
       | None -> failwith "Could not find `pk` on PATH"
-      | Some path ->
-          match find (String.split_on_chars ~on:[':'] path) with
+      | Some path -> (
+          match find (String.split_on_chars ~on:[ ':' ] path) with
           | Some pk -> pk
-          | None -> failwith "Could not find `pk` on PATH"
+          | None -> failwith "Could not find `pk` on PATH")
     in
     let outc =
       Stdio.Out_channel.create output_asm_fname ~append:false
