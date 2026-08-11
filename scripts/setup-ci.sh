@@ -14,7 +14,6 @@ opam install ocamlformat -y
 
 # Download the prebuilt test tools produced by the release workflow.
 export RISCV=/opt/riscv
-export PATH="$RISCV/bin:$RISCV/riscv64-unknown-elf/bin:$PATH"
 
 if [ -x "$RISCV/bin/riscv64-unknown-elf-gcc" ] \
   && [ -x "$RISCV/bin/spike" ] \
@@ -26,3 +25,4 @@ else
 fi
 sudo ln -sf /opt/riscv/bin/riscv64-unknown-elf-gcc /usr/local/bin/riscv64-unknown-elf-gcc
 sudo ln -sf /opt/riscv/bin/spike /usr/local/bin/spike
+sudo ln -sf /opt/riscv/riscv64-unknown-elf/bin/pk /usr/local/bin/pk

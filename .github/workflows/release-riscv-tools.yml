@@ -60,9 +60,12 @@ jobs:
 
       - name: Test RISC-V tools against Tiger
         run: |
-          export PATH="$RISCV/bin:$RISCV/riscv64-unknown-elf/bin:$PATH"
           opam install . --deps-only --with-test -y
-          opam exec -- dune runtest
+          tool_bin="$(mktemp -d)"
+          ln -s "$RISCV/bin/riscv64-unknown-elf-gcc" "$tool_bin/riscv64-unknown-elf-gcc"
+          ln -s "$RISCV/bin/spike" "$tool_bin/spike"
+          ln -s "$RISCV/riscv64-unknown-elf/bin/pk" "$tool_bin/pk"
+          PATH="$tool_bin:$PATH" opam exec -- dune runtest
 
       - name: Package RISC-V test tools
         run: tar -czf "$ARCHIVE" riscv
