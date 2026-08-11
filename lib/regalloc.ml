@@ -93,15 +93,13 @@ module RegAlloc = struct
       if List.is_empty spills then
         let coalesced_instrs =
           List.filter instrs ~f:(fun instr ->
-              match instr with
-              | Assem.MOVE { dst; src; _ }
-              (* Every temporary should have been assigned a register, so
-                 we should be able to use `look_exn`. *)
-                when Frame.register_eq
-                       (Temp.look_exn (allocation, src))
-                       (Temp.look_exn (allocation, dst)) ->
-                  false
-              | _ -> true)
+               match instr with
+               | Assem.MOVE { dst; src; _ } -> (
+                   match Temp.look (allocation, src), Temp.look (allocation, dst) with
+                   | Some src_reg, Some dst_reg ->
+                       not (Frame.register_eq src_reg dst_reg)
+                   | _ -> true)
+               | _ -> true)
         in
         (coalesced_instrs, allocation)
       else rewrite_program spills instrs frame flowgraph |> inner
