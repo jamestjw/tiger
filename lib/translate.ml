@@ -177,18 +177,28 @@ module Translate = struct
   let binOpPlus e1 e2 = Tree.BINOP (Tree.PLUS, e1, e2)
   let binOpMul e1 e2 = Tree.BINOP (Tree.MUL, e1, e2)
 
-  (* TODO: Emit code for bounds checking.
-     Idea: Use the first word to store the array length
-     and use that to carry out bounds checking. *)
-  let subscriptVar (var_exp, index_exp) =
-    Ex
-      (T.MEM
-         (binOpPlus (unEx var_exp)
-            (binOpMul (T.CONST Frame.word_size) (unEx index_exp))))
-
   (* Assume that stdlib functions do not require a static link *)
   let callStdlibExp (name, args) =
     Ex (Frame.externalCall (name, List.map unEx args))
+
+  let subscriptVar (var_exp, index_exp) =
+    let array = Temp.new_temp () in
+    let index = Temp.new_temp () in
+    Ex
+      (T.ESEQ
+         ( seq
+             [
+               T.MOVE (T.TEMP array, unEx var_exp);
+               T.MOVE (T.TEMP index, unEx index_exp);
+               unNx
+                 (callStdlibExp
+                    ( "assert_array_index",
+                      [ Ex (T.TEMP array); Ex (T.TEMP index) ] ));
+             ],
+           T.MEM
+             (binOpPlus (T.TEMP array)
+                (binOpMul (T.CONST Frame.word_size)
+                   (Tree.BINOP (Tree.PLUS, T.TEMP index, T.CONST 1)))) ))
 
   let fieldVar (var_exp, field_index) =
     (* Store the record pointer in a register so we can
