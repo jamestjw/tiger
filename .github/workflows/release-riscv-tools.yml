@@ -13,11 +13,11 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RISCV: ${{ github.workspace }}/riscv
-      SPIKE_REVISION: 16c0b60119f65a648643cf5d41e4e38e871f0bad
-      PK_REVISION: 9c61d29846d8521d9487a57739330f9682d5b542
+      SPIKE_REVISION: 1df65613df9970dc7f5c2f3d1bf343dbb0497828
+      PK_REVISION: 2efabd3e6604b8a9e8f70baf52f57696680c7855
       ARCHIVE: riscv-test-tools-linux-x86_64.tar.gz
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
           git -C spike checkout "$SPIKE_REVISION"
           mkdir spike/build
           cd spike/build
-          ../configure --prefix="$RISCV"
+          CXXFLAGS="-include cstdint" ../configure --prefix="$RISCV"
           make -j"$(nproc)"
           make install
 
