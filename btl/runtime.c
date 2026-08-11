@@ -31,13 +31,20 @@ void print(struct tigerstr *s) {
 }
 
 int64_t *initArray(int64_t size, int64_t init) {
-  int i;
-  int64_t *a = (int64_t *)malloc(size * sizeof(int64_t));
+  int64_t *a = (int64_t *)malloc((size + 1) * sizeof(int64_t));
+  a[0] = size;
 
   for (int i = 0; i < size; i++)
-    a[i] = init;
+    a[i + 1] = init;
 
   return a;
+}
+
+void assert_array_index(const int64_t *array, int64_t index) {
+  if (array == NULL || index < 0 || index >= array[0]) {
+    fprintf(stderr, "Array index %lld is out of bounds.\n", index);
+    exit(1);
+  }
 }
 
 int *allocRecord(int size) {
