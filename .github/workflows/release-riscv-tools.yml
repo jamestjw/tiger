@@ -38,9 +38,11 @@ jobs:
         run: |
           git clone https://github.com/riscv-software-src/riscv-isa-sim.git spike
           git -C spike checkout "$SPIKE_REVISION"
-          ./spike/configure --prefix="$RISCV"
-          make -C spike -j"$(nproc)"
-          make -C spike install
+          mkdir spike/build
+          cd spike/build
+          ../configure --prefix="$RISCV"
+          make -j"$(nproc)"
+          make install
 
       - name: Build proxy kernel
         run: |
