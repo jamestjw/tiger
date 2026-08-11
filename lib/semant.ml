@@ -214,10 +214,10 @@ module Semant : SEMANT = struct
             List.fold_left
               ~f:(fun (l, _) (e, _) ->
                 let { exp; ty } = trexp e in
-                (l @ [ exp ], ty))
+                (exp :: l, ty))
               ~init:([], Types.NIL) exps
           in
-          { exp = Translate.seqExp exps'; ty }
+          { exp = Translate.seqExp (List.rev exps'); ty }
       | AssignExp { var; exp; pos } ->
           let { ty = var_type; exp = var_exp } =
             transVar (venv, tenv, senv, level, var)
