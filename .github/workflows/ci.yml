@@ -15,7 +15,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-24.04
     env:
-      RISC_V_TOOLS_URL: https://github.com/${{ github.repository }}/releases/download/riscv-tools-v1/riscv-test-tools-linux-x86_64.tar.gz
+      RISC_V_TOOLS_URL: https://github.com/${{ github.repository }}/releases/download/riscv-tools-v2/riscv-test-tools-linux-x86_64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
