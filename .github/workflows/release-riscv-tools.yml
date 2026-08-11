@@ -1,0 +1,64 @@
+name: Release RISC-V Test Tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag for the tool archive
+        required: true
+        default: riscv-tools-v1
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      RISCV: ${{ github.workspace }}/riscv
+      SPIKE_REVISION: 16c0b60119f65a648643cf5d41e4e38e871f0bad
+      PK_REVISION: 9c61d29846d8521d9487a57739330f9682d5b542
+      ARCHIVE: riscv-test-tools-linux-x86_64.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf device-tree-compiler libboost-all-dev m4 pkg-config wget
+
+      - name: Install prebuilt RISC-V compiler
+        run: |
+          wget -q https://github.com/zyedidia/riscv-gnu-toolchain-prebuilt/releases/download/v1/riscv64-unknown-elf-multilib.tar.gz
+          tar -xzf riscv64-unknown-elf-multilib.tar.gz
+          rm riscv64-unknown-elf-multilib.tar.gz
+          echo "$RISCV/bin" >> "$GITHUB_PATH"
+
+      - name: Build Spike
+        run: |
+          git clone https://github.com/riscv-software-src/riscv-isa-sim.git spike
+          git -C spike checkout "$SPIKE_REVISION"
+          ./spike/configure --prefix="$RISCV"
+          make -C spike -j"$(nproc)"
+          make -C spike install
+
+      - name: Build proxy kernel
+        run: |
+          git clone https://github.com/riscv-software-src/riscv-pk.git pk
+          git -C pk checkout "$PK_REVISION"
+          mkdir pk/build
+          cd pk/build
+          ../configure --prefix="$RISCV" --host=riscv64-unknown-elf
+          make -j"$(nproc)"
+          make install
+
+      - name: Package RISC-V test tools
+        run: tar -czf "$ARCHIVE" riscv
+
+      - name: Publish release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.tag }}" "$ARCHIVE" \
+            --title "RISC-V test tools ${{ inputs.tag }}" \
+            --notes "Pinned Spike and proxy-kernel tools for Tiger integration tests."
