@@ -24,7 +24,7 @@ jobs:
       - name: Restore opam cache
         uses: actions/cache@v4
         with:
-          path: ~/.opam
+          path: _opam
           key: opam-${{ runner.os }}-${{ hashFiles('tiger.opam') }}
 
       - name: Restore RISC-V toolchain cache
