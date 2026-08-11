@@ -151,7 +151,7 @@ module Semant : SEMANT = struct
                 (left_expty.exp, oper, right_expty.exp);
             ty = Types.INT;
           }
-      | A.OpExp _ -> raise Internal_error
+      | A.OpExp _ -> ErrorMsg.impossible "unexpected OpExp shape in semant"
       | A.RecordExp { fields = input_fields; typ; pos } -> (
           match Symbol.look (tenv, typ) with
           | Some t -> (
