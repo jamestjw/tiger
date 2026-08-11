@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.3.0
+
+      - name: Restore opam cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.opam
+          key: opam-${{ runner.os }}-${{ hashFiles('tiger.opam') }}
+
+      - name: Restore RISC-V toolchain cache
+        uses: actions/cache@v4
+        with:
+          path: ~/riscv
+          key: riscv-v3
+
+      - name: Restore RISC-V toolchain
+        run: |
+          if [ -d ~/riscv ]; then
+            sudo cp -r ~/riscv /opt
+          fi
+
+      - name: Set up dependencies and RISC-V tools
+        run: |
+          chmod +x .circleci/ci
+          ./.circleci/ci
+
+      - name: Cache RISC-V toolchain
+        run: sudo cp -r /opt/riscv ~/
+
+      - name: Build
+        run: opam exec -- dune build
+
+      - name: Test
+        run: opam exec -- dune runtest
+
+      - name: Check formatting
+        run: opam exec -- dune build @fmt
