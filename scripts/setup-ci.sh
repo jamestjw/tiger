@@ -10,7 +10,7 @@ opam install . --deps-only --with-test -y
 eval `opam config env`
 
 # Extra dependencies
-opam install ocamlformat.0.26.2 -y
+opam install ocamlformat.0.27.0 -y
 
 # Download the prebuilt test tools produced by the release workflow.
 export RISCV=/opt/riscv
