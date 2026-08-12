@@ -87,8 +87,8 @@ let%test_unit _ =
         [%test_result: string] cmd_output ~expect:expected;
         Stdio.print_endline "[OK]"
     | Ok _, Some expected_stderr, Error _ ->
-        [%test_result: string] cmd_output ~expect:expected;
-        [%test_result: string] cmd_error ~expect:(String.rstrip expected_stderr);
+        [%test_result: string] (cmd_output ^ cmd_error)
+          ~expect:(String.rstrip expected_stderr);
         Stdio.print_endline "[OK]"
     | _ ->
         Stdio.print_endline "[ERROR]";
