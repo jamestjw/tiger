@@ -80,6 +80,7 @@ let%test_unit _ =
     let run_status = Core_unix.close_process (cmd_inc, cmd_outc) in
     let cmd_error =
       In_channel.with_file ~f:In_channel.input_all output_err_fname
+      |> String.rstrip
     in
     (match (compile_status, expected_stderr, run_status) with
     | Ok _, None, Ok _ ->
@@ -87,7 +88,7 @@ let%test_unit _ =
         Stdio.print_endline "[OK]"
     | Ok _, Some expected_stderr, Error _ ->
         [%test_result: string] cmd_output ~expect:expected;
-        [%test_result: string] cmd_error ~expect:expected_stderr;
+        [%test_result: string] cmd_error ~expect:(String.rstrip expected_stderr);
         Stdio.print_endline "[OK]"
     | _ ->
         Stdio.print_endline "[ERROR]";
