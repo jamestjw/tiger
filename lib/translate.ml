@@ -200,7 +200,7 @@ module Translate = struct
              [
                T.MOVE (T.TEMP r, unEx var_exp);
                unNx (callStdlibExp ("assert_non_null", [ Ex (T.TEMP r) ]));
-              ],
+             ],
            (* TODO: We manually did the constant folding here, though it
               wouldn't been necessary if the compiler implemented constant
               folding as an optimisation. *)
