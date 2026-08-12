@@ -198,6 +198,7 @@ module Translate = struct
            T.MEM
              (binOpPlus (T.TEMP array)
                 (binOpMul (T.CONST Frame.word_size)
+                   (* Word zero holds the array length, so elements begin at index one. *)
                    (Tree.BINOP (Tree.PLUS, T.TEMP index, T.CONST 1)))) ))
 
   let fieldVar (var_exp, field_index) =
