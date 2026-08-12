@@ -22,12 +22,22 @@ let%test_unit _ =
     Stdio.printf "Testing %s - " fname;
     let output_asm_fname = Stdlib.Filename.chop_extension fname ^ ".s" in
     let output_bin_fname = Stdlib.Filename.chop_extension fname ^ ".out" in
+    let output_err_fname = Stdlib.Filename.chop_extension fname ^ ".err" in
     let full_fname = test_dir ^ input_dir ^ fname in
     let expected_fname =
       test_dir ^ expected_dir ^ Stdlib.Filename.chop_extension fname ^ ".output"
     in
     let expected =
       In_channel.with_file ~f:In_channel.input_all expected_fname
+    in
+    let expected_stderr_fname =
+      test_dir ^ expected_dir ^ Stdlib.Filename.chop_extension fname ^ ".stderr"
+    in
+    let expected_stderr =
+      if Stdlib.Sys.file_exists expected_stderr_fname then
+        Some
+          (In_channel.with_file ~f:In_channel.input_all expected_stderr_fname)
+      else None
     in
     let output = Driver.compile_file ~filename:full_fname in
     let pk_file =
@@ -53,26 +63,39 @@ let%test_unit _ =
     Stdio.Out_channel.flush outc;
     let cmd =
       Printf.sprintf
-        "riscv64-unknown-elf-gcc %s %s -Wl,--wrap=getchar,--wrap=strcmp -o %s \
-         && spike %s %s"
-        output_asm_fname runtime_file output_bin_fname pk_file output_bin_fname
+        "riscv64-unknown-elf-gcc %s %s -Wl,--wrap=getchar,--wrap=strcmp -o %s"
+        output_asm_fname runtime_file output_bin_fname
     in
-
+    let compile_status = Core_unix.system cmd in
+    let cmd =
+      Printf.sprintf "spike %s %s 2> %s" pk_file output_bin_fname
+        output_err_fname
+    in
     let cmd_inc, cmd_outc = Core_unix.open_process cmd in
     let cmd_output =
       match In_channel.input_lines ~fix_win_eol:true cmd_inc with
       | [] -> ""
       | _ :: lines -> String.concat ~sep:"\n" lines |> sanitise
     in
-    (match Core_unix.close_process (cmd_inc, cmd_outc) with
-    | Ok _ ->
+    let run_status = Core_unix.close_process (cmd_inc, cmd_outc) in
+    let cmd_error =
+      In_channel.with_file ~f:In_channel.input_all output_err_fname
+      |> String.rstrip
+    in
+    (match (compile_status, expected_stderr, run_status) with
+    | Ok _, None, Ok _ ->
         [%test_result: string] cmd_output ~expect:expected;
         Stdio.print_endline "[OK]"
-    | Error _ ->
+    | Ok _, Some expected_stderr, Error _ ->
+        [%test_result: string] (cmd_output ^ cmd_error)
+          ~expect:(String.rstrip expected_stderr);
+        Stdio.print_endline "[OK]"
+    | _ ->
         Stdio.print_endline "[ERROR]";
         encountered_err := true);
     Core_unix.remove output_asm_fname;
-    Core_unix.remove output_bin_fname
+    Core_unix.remove output_bin_fname;
+    Core_unix.remove output_err_fname
   in
   Stdlib.Sys.readdir (test_dir ^ input_dir)
   |> Array.to_list

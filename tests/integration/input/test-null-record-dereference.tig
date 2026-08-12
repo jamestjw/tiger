@@ -1,0 +1,7 @@
+let
+  type record = { value: int }
+  var value: record := record { value = 1 }
+in
+  value := nil;
+  value.value
+end

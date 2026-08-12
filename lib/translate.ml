@@ -205,31 +205,12 @@ module Translate = struct
     (* Store the record pointer in a register so we can
        check that it is not null *)
     let r = Temp.new_temp () in
-    (* NOTE: This was previously used  when checking for null pointers. *)
-    (* let quit_label = Temp.new_label () in *)
-    (* let ok_label = Temp.new_label () in *)
     Ex
       (T.ESEQ
          ( seq
              [
                T.MOVE (T.TEMP r, unEx var_exp);
                unNx (callStdlibExp ("assert_non_null", [ Ex (T.TEMP r) ]));
-               (* TODO: Generating the following code everytime there is a field
-                  access adds bloat to the output code and also slows down register
-                  allocation. One day when we have a runtime library written in
-                  Tiger, we should move this there, but for now, we shall call the runtime fn
-                  written in C to assert that the pointer is non null. *)
-
-               (* T.CJUMP (T.EQ, T.TEMP r, T.CONST 0, quit_label, ok_label); *)
-               (* T.LABEL quit_label; *)
-               (* (* If we encounter a null pointer, print a message and exit *) *)
-               (* unNx *)
-               (* (callStdlibExp *)
-               (* ( Temp.named_label "print", *)
-               (* [ stringExp "Null pointer dereference" ] )); *)
-               (* unNx *)
-               (* (callStdlibExp (Temp.named_label "exit", [ Ex (T.CONST 1) ])); *)
-               (* T.LABEL ok_label; *)
              ],
            (* TODO: We manually did the constant folding here, though it
               wouldn't been necessary if the compiler implemented constant
