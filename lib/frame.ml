@@ -415,10 +415,11 @@ module RiscVFrame : FRAME = struct
       Int.max 0 (!max_num_parameters - List.length arg_regs)
     in
     let num_locals = !num_locals + max_params_on_stack in
-    (* TODO: Verify that we want this -1 *)
-    (* TODO: SP should always be 16-byte aligned according to
-       https://en.wikichip.org/wiki/risc-v/registers*)
-    let sp_offset = local_start_offset - (word_size * (num_locals - 1)) in
+    (* Local slots plus the saved caller frame pointer. *)
+    let frame_size = word_size * (num_locals + 1) in
+    (* RISC-V requires the stack pointer to be 16-byte aligned. *)
+    let aligned_frame_size = (frame_size + 15) land lnot 15 in
+    let sp_offset = -aligned_frame_size in
     let fn_header =
       Printf.sprintf "\t.text\n\t.globl\t%s\n\t.type\t%s, @function\n%s:\n" name
         name name
@@ -520,6 +521,24 @@ module RiscVFrame : FRAME = struct
     [%test_eq: register list]
       (List.map ~f:register_to_string_default callee_saves)
       expected
+
+  let%test_unit "stack frames are 16-byte aligned" =
+    let stack_allocation num_locals =
+      let frame = new_frame { name = Temp.new_label (); formals = [] } in
+      List.iter (List.init num_locals ~f:Fn.id) ~f:(fun _ ->
+          ignore (alloc_local frame true));
+      let { prolog; _ } = procEntryExit3 (frame, []) in
+      List.find_exn (String.split_lines prolog) ~f:(fun line ->
+          String.is_prefix line ~prefix:"\taddi sp")
+    in
+    [%test_eq: string list]
+      (List.map ~f:stack_allocation [ 0; 1; 2; 3 ])
+      [
+        "\taddi sp, sp, -16";
+        "\taddi sp, sp, -16";
+        "\taddi sp, sp, -32";
+        "\taddi sp, sp, -32";
+      ]
 end
 
 module Frame : FRAME = RiscVFrame
