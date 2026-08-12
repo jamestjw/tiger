@@ -100,7 +100,11 @@ module RegAlloc = struct
                   with
                   | Some src_reg, Some dst_reg ->
                       not (Frame.register_eq src_reg dst_reg)
-                  | _ -> true)
+                  | _ ->
+                      ErrorMsg.impossible
+                        (Printf.sprintf
+                           "uncolored move after register allocation: %s -> %s"
+                           (Temp.make_string src) (Temp.make_string dst)))
               | _ -> true)
         in
         (coalesced_instrs, allocation)
