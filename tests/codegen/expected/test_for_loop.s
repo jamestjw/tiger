@@ -2,9 +2,9 @@
 	.globl	tigermain
 	.type	tigermain, @function
 tigermain:
-	addi sp, sp, -24
-	sd fp, 16(sp)
-	addi fp, sp, 24
+	addi sp, sp, -32
+	sd fp, 24(sp)
+	addi fp, sp, 32
 
 L4:
 	sd a0, -16(fp)
