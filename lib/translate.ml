@@ -102,6 +102,7 @@ module Translate = struct
     match Frame.formals l.frame with
     | static_link :: _ -> static_link
     | [] -> ErrorMsg.impossible "level has no static link"
+
   let alloc_local l escape = (l, Frame.alloc_local l.frame escape)
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
