@@ -24,6 +24,8 @@ let generateFrag f =
   match f with
   | Frame.PROC { body; frame } -> generateFunctionStm body frame
   | Frame.STRING (lab, str) -> Frame.string lab str
+  | Frame.RECORD_DESCRIPTOR (lab, pointer_fields) ->
+      Frame.record_descriptor lab pointer_fields
 
 let compile_channel ?filename chan =
   let absyn = Parser.parse_channel ?filename chan in

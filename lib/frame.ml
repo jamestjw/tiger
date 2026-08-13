@@ -17,6 +17,7 @@ module type FRAME = sig
   type frag =
     | PROC of { body : Tree.stm; frame : frame }
     | STRING of Temp.label * string
+    | RECORD_DESCRIPTOR of Temp.label * bool list
 
   val new_frame : new_frame_args -> frame
   val name : frame -> Temp.label
@@ -77,6 +78,7 @@ module type FRAME = sig
     fn_prolog_epilog -> register_map:register Temp.tbl -> string
 
   val string : Symbol.symbol -> string -> string
+  val record_descriptor : Temp.label -> bool list -> string
 end
 
 (* TODO: Implement this if we really want to target the x86 architecture *)
@@ -192,6 +194,7 @@ module RiscVFrame : FRAME = struct
   type frag =
     | PROC of { body : Tree.stm; frame : frame }
     | STRING of Temp.label * string
+    | RECORD_DESCRIPTOR of Temp.label * bool list
 
   let word_size = 8
 
@@ -449,10 +452,11 @@ module RiscVFrame : FRAME = struct
   (* Instruction to generate a string with a label. *)
   let string label str =
     let label = Symbol.name label in
-    let strlen = String.length str in
+    let char_list = String.to_list @@ Stdlib.Scanf.unescaped str in
+    let strlen = List.length char_list in
     (* We are aligning this to 8, i.e. .align 3 (power of 2)*)
     let padding = 8 - (strlen % 8) in
-    (* +8 because the first 8 bytes is used for the string length *)
+    (* +8 for the immediate string kind and +8 for the string length. *)
     let preamble =
       Printf.sprintf
         " \t.globl\t%s\n\
@@ -461,21 +465,37 @@ module RiscVFrame : FRAME = struct
          \t.type\t%s, @object\n\
          \t.size\t%s, %d\n\
          %s:\n\
+         \t.dword\t%d\n\
          \t.dword\t%d\n"
         label label label
-        (8 + strlen + padding)
-        label strlen
+        (16 + strlen + padding)
+        label 1 strlen
     in
     let body =
-      String.to_list @@ Stdlib.Scanf.unescaped str
-      |> List.map ~f:(fun c ->
-             Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
+      List.map char_list ~f:(fun c ->
+          Printf.sprintf "\t.byte\t%d" @@ Stdlib.Char.code c)
       |> String.concat ~sep:"\n"
     in
     let postamble =
       if padding > 0 then Printf.sprintf "\n\t.zero\t%d\n" padding else "\n"
     in
     preamble ^ body ^ postamble
+
+  let record_descriptor label pointer_fields =
+    let field_count = List.length pointer_fields in
+    let bitmaps = Stdlib.Array.make ((field_count + 63) / 64) 0L in
+    List.iteri pointer_fields ~f:(fun i is_pointer ->
+        if is_pointer then
+          let word = i / 64 in
+          let shift = i % 64 in
+          bitmaps.(word) <- Int64.(bitmaps.(word) lor (1L lsl shift)));
+    let bitmap_data =
+      Stdlib.Array.to_list bitmaps
+      |> List.map ~f:(Printf.sprintf "\t.dword\t%Ld\n")
+      |> String.concat
+    in
+    Printf.sprintf "\t.section\t.rodata\n\t.align\t3\n%s:\n\t.dword\t%d\n%s"
+      (Symbol.name label) field_count bitmap_data
 
   let dummy_register_list i = List.init i ~f:(fun i -> Printf.sprintf "r%d" i)
 
@@ -488,6 +508,15 @@ module RiscVFrame : FRAME = struct
     in
     [%test_eq: access list] (formals frame)
       [ InFrame (-16); InFrame (-24); InFrame (-32) ]
+
+  let%test_unit "record descriptors encode pointer fields" =
+    [%test_eq: string]
+      (record_descriptor (Temp.named_label "descriptor") [ true; false; true ])
+      "\t.section\t.rodata\n\
+       \t.align\t3\n\
+       descriptor:\n\
+       \t.dword\t3\n\
+       \t.dword\t5\n"
 
   let%test_unit "test_all_escape_locals" =
     let expected = [ InFrame (-16); InFrame (-24); InFrame (-32) ] in

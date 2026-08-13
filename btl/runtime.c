@@ -1,8 +1,11 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct tigerstr {
+  uint64_t kind;
   int64_t length;
   /* This can be infinitely long when we start allocating strings. */
   unsigned char chars[1];
@@ -13,10 +16,17 @@ struct tigerstr {
 extern int tigermain(int);
 
 struct tigerstr consts[256];
-struct tigerstr empty = {0, ""};
+enum tiger_kind {
+  TIGER_STRING = 1,
+  TIGER_POINTER_ARRAY = 2,
+  TIGER_SCALAR_ARRAY = 3,
+};
+
+struct tigerstr empty = {TIGER_STRING, 0, ""};
 
 int main() {
   for (int i = 0; i < 256; i++) {
+    consts[i].kind = TIGER_STRING;
     consts[i].length = 1;
     consts[i].chars[0] = i;
   }
@@ -30,30 +40,31 @@ void print(struct tigerstr *s) {
     putchar(*p);
 }
 
-int64_t *initArray(int64_t size, int64_t init) {
-  int64_t *a = (int64_t *)malloc((size + 1) * sizeof(int64_t));
-  a[0] = size;
+int64_t *initArray(int64_t size, int64_t init, int64_t is_pointer) {
+  int64_t *a = (int64_t *)malloc((size + 2) * sizeof(int64_t));
+  a[0] = is_pointer ? TIGER_POINTER_ARRAY : TIGER_SCALAR_ARRAY;
+  a[1] = size;
 
   for (int i = 0; i < size; i++)
-    a[i + 1] = init;
+    a[i + 2] = init;
 
   return a;
 }
 
 void assert_array_index(const int64_t *array, int64_t index) {
-  if (array == NULL || index < 0 || index >= array[0]) {
-    fprintf(stderr, "Array index %lld is out of bounds.\n", index);
+  if (array == NULL || index < 0 || index >= array[1]) {
+    fprintf(stderr, "Array index %" PRId64 " is out of bounds.\n", index);
     exit(1);
   }
 }
 
-int *allocRecord(int size) {
-  int i;
-  int *p, *a;
-  p = a = (int *)malloc(size);
+int64_t *allocRecord(const int64_t *descriptor) {
+  int64_t field_count = descriptor[0];
+  int64_t *a = malloc((field_count + 1) * sizeof(int64_t));
 
-  for (i = 0; i < size; i += sizeof(int))
-    *p++ = 0;
+  a[0] = (int64_t)descriptor;
+  for (int i = 0; i < field_count; i++)
+    a[i + 1] = 0;
 
   return a;
 }
@@ -71,7 +82,7 @@ int64_t ord(const struct tigerstr *s) {
 
 struct tigerstr *chr(int64_t i) {
   if (i < 0 || i > 255) {
-    printf("Called chr with out of range argument: %lld", i);
+    printf("Called chr with out of range argument: %" PRId64, i);
     exit(1);
   }
 
@@ -84,24 +95,24 @@ int64_t size(const struct tigerstr *s) { return s->length; }
 /* Substring of string `s`, starting with character `first`, `n` characters
  * long. Characters are numbered starting at 0. */
 struct tigerstr *substring(const struct tigerstr *s, int64_t first, int64_t n) {
-  int substr_len;
-  int64_t s_len = s->length;
-
   // Ensure `first` and `n` are within bounds.
   if (first < 0 || first + n > s->length) {
-    fprintf(stderr, "substring([%lld],%lld,%lld) out of range\n", s->length, first, n);
+    fprintf(stderr, "substring([%" PRId64 "],%" PRId64 ",%" PRId64
+                    ") out of range\n",
+            s->length, first, n);
     exit(1);
   }
 
   if (n == 1)
     return consts + s->chars[first];
   else {
-    struct tigerstr *t = malloc(sizeof(int64_t) + n);
+    struct tigerstr *t = malloc(sizeof(uint64_t) + sizeof(int64_t) + n);
     if (t == NULL) {
       fprintf(stderr, "Failed to allocate memory for `substring`.\n");
       exit(1);
     }
 
+    t->kind = TIGER_STRING;
     t->length = n;
 
     for (int i = 0; i < n; i++)
@@ -119,12 +130,13 @@ struct tigerstr *concat(struct tigerstr *a, struct tigerstr *b) {
   else {
     int n = a->length + b->length;
 
-    struct tigerstr *t = malloc(sizeof(int) + n);
+    struct tigerstr *t = malloc(sizeof(uint64_t) + sizeof(int64_t) + n);
     if (t == NULL) {
       fprintf(stderr, "Failed to allocate memory for `substring`.\n");
       exit(1);
     }
 
+    t->kind = TIGER_STRING;
     t->length = n;
 
     for (int i = 0; i < a->length; i++)
