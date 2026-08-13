@@ -15,7 +15,7 @@ let%test_unit _ =
   in
   let strip_loader_banner output =
     match String.lsplit2 output ~on:'\n' with
-    | Some ("bbl loader", output) -> output
+    | Some (("bbl loader" | "bbl loader\r"), output) -> output
     | _ -> output
   in
   let test_dir = "../../../tests/integration/" in
