@@ -13,6 +13,11 @@ let%test_unit _ =
     (* For some reason, `spike pk` inserts this null character? *)
     Str.global_replace (Str.regexp "\000") ""
   in
+  let strip_loader_banner output =
+    match String.lsplit2 output ~on:'\n' with
+    | Some ("bbl loader", output) -> output
+    | _ -> output
+  in
   let test_dir = "../../../tests/integration/" in
   let runtime_file = "../../../btl/runtime.c" in
   let input_dir = "input/" in
@@ -72,7 +77,9 @@ let%test_unit _ =
         output_err_fname
     in
     let cmd_inc, cmd_outc = Core_unix.open_process cmd in
-    let cmd_output = In_channel.input_all cmd_inc |> sanitise in
+    let cmd_output =
+      In_channel.input_all cmd_inc |> sanitise |> strip_loader_banner
+    in
     let run_status = Core_unix.close_process (cmd_inc, cmd_outc) in
     let cmd_error =
       In_channel.with_file ~f:In_channel.input_all output_err_fname
