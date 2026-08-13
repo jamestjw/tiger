@@ -98,10 +98,14 @@ module Semant : SEMANT = struct
       | A.OpExp { left; oper; right; pos } when A.is_comparison_op oper -> (
           let { ty = left_ty; exp = left_exp } = trexp left in
           let { ty = right_ty; exp = right_exp } = trexp right in
-          let left_ty = actual_ty left_ty in
-          let right_ty = actual_ty right_ty in
-          match left_ty with
-          | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
+           let left_ty = actual_ty left_ty in
+           let right_ty = actual_ty right_ty in
+           match left_ty with
+           | Types.UNKNOWN ->
+               { exp = Translate.default_exp; ty = Types.INT }
+           | _ when Poly.equal right_ty Types.UNKNOWN ->
+               { exp = Translate.default_exp; ty = Types.INT }
+           | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
           | Types.ARRAY _ ->
               if Types.equals (left_ty, right_ty) then (
                 match
@@ -199,15 +203,15 @@ module Semant : SEMANT = struct
                       exp = Translate.recordExp input_field_exps;
                       ty = record_type;
                     }
-              | _ ->
-                  ErrorMsg.error_pos pos
-                    (Printf.sprintf "invalid record type: %s"
-                       (Types.to_string record_type));
-                  { exp = Translate.default_exp; ty = Types.INT })
-          | None ->
-              ErrorMsg.error_pos pos
-                (Printf.sprintf "undefined type %s" (S.name typ));
-              { exp = Translate.default_exp; ty = Types.INT })
+               | _ ->
+                   ErrorMsg.error_pos pos
+                     (Printf.sprintf "invalid record type: %s"
+                        (Types.to_string record_type));
+                   { exp = Translate.default_exp; ty = record_type })
+           | None ->
+               ErrorMsg.error_pos pos
+                 (Printf.sprintf "undefined type %s" (S.name typ));
+               { exp = Translate.default_exp; ty = Types.UNKNOWN })
       | SeqExp exps ->
           (* Returns the NIL type for empty sequences *)
           let exps', ty =

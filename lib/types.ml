@@ -12,6 +12,7 @@ module Types = struct
     | ARRAY of ty * unique
     | NAME of Symbol.symbol * ty option ref
     | UNIT
+    | UNKNOWN
 
   let rec to_string = function
     | RECORD (fields, _) ->
@@ -26,6 +27,7 @@ module Types = struct
     | ARRAY (t, _) -> Printf.sprintf "ARRAY<%s>" (to_string t)
     | NAME (s, _) -> Printf.sprintf "NAME<%s>" (Symbol.name s)
     | UNIT -> "()"
+    | UNKNOWN -> "UNKNOWN"
 
   let equals = function
     | RECORD (_, u1), RECORD (_, u2) -> u1 = u2
@@ -34,6 +36,7 @@ module Types = struct
     | INT, INT -> true
     | STRING, STRING -> true
     | UNIT, UNIT -> true
+    | UNKNOWN, _ | _, UNKNOWN -> true
     | NAME (n1, _), NAME (n2, _) -> n1 = n2
     (* NIL is compatible with all RECORDS *)
     | NIL, RECORD _ -> true
