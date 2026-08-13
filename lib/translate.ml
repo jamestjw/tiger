@@ -202,8 +202,8 @@ module Translate = struct
            T.MEM
              (binOpPlus (T.TEMP array)
                 (binOpMul (T.CONST Frame.word_size)
-                   (* Word zero holds the array length, so elements begin at index one. *)
-                   (Tree.BINOP (Tree.PLUS, T.TEMP index, T.CONST 1)))) ))
+                   (* Words zero and one hold the kind and length. *)
+                   (Tree.BINOP (Tree.PLUS, T.TEMP index, T.CONST 2)))) ))
 
   let fieldVar (var_exp, field_index) =
     (* Store the record pointer in a register so we can
@@ -220,7 +220,8 @@ module Translate = struct
               wouldn't been necessary if the compiler implemented constant
               folding as an optimisation. *)
            T.MEM
-             (binOpPlus (T.TEMP r) (T.CONST (Frame.word_size * field_index))) ))
+             (binOpPlus (T.TEMP r)
+                (T.CONST (Frame.word_size * (field_index + 1)))) ))
 
   let assignExp (var, exp) = Nx (T.MOVE (unEx var, unEx exp))
 
@@ -304,33 +305,40 @@ module Translate = struct
            T.LABEL end_label;
          ])
 
-  let recordExp fields =
-    let num_fields = List.length fields in
-    let record_size = num_fields * Frame.word_size in
+  let recordExp fields pointer_fields =
+    let descriptor = Temp.new_label () in
     let r = Temp.new_temp () in
     let _, processed_fields =
       List.fold_left
         (fun (idx, fs) field ->
           ( idx + 1,
             T.MOVE
-              ( T.MEM (binOpPlus (T.TEMP r) (T.CONST (idx * Frame.word_size))),
+              ( T.MEM
+                  (binOpPlus (T.TEMP r) (T.CONST ((idx + 1) * Frame.word_size))),
                 unEx field )
             :: fs ))
         (0, []) fields
     in
-    Ex
-      (T.ESEQ
-         ( seq
-             ([
-                T.MOVE
-                  ( T.TEMP r,
-                    unEx
-                    @@ callStdlibExp ("malloc", [ Ex (T.CONST record_size) ]) );
-              ]
-             @ processed_fields),
-           T.TEMP r ))
+    let exp =
+      Ex
+        (T.ESEQ
+           ( seq
+               ([
+                  T.MOVE
+                    ( T.TEMP r,
+                      unEx
+                      @@ callStdlibExp
+                           ("allocRecord", [ Ex (T.NAME descriptor) ]) );
+                ]
+               @ processed_fields),
+             T.TEMP r ))
+    in
+    frags := Frame.RECORD_DESCRIPTOR (descriptor, pointer_fields) :: !frags;
+    exp
 
-  let arrayExp (size, init) = callStdlibExp ("initArray", [ size; init ])
+  let arrayExp (size, init, is_pointer) =
+    let is_pointer = if is_pointer then Ex (T.CONST 1) else Ex (T.CONST 0) in
+    callStdlibExp ("initArray", [ size; init; is_pointer ])
 
   let findFunctionStaticLink (fn_level, call_level) =
     let rec do_one_level curr_level frame_addr =

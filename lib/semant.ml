@@ -195,8 +195,12 @@ module Semant : SEMANT = struct
                         ~init:[] fields
                       |> List.rev
                     in
+                    let pointer_fields =
+                      List.map fields ~f:(fun (_, ty) ->
+                          Types.is_ptr (actual_ty ty))
+                    in
                     {
-                      exp = Translate.recordExp input_field_exps;
+                      exp = Translate.recordExp input_field_exps pointer_fields;
                       ty = record_type;
                     }
               | _ ->
@@ -349,7 +353,11 @@ module Semant : SEMANT = struct
                         "array initial value expected to be of type %s"
                         (Types.to_string t) );
                   {
-                    exp = Translate.arrayExp (size_expty.exp, init_expty.exp);
+                    exp =
+                      Translate.arrayExp
+                        ( size_expty.exp,
+                          init_expty.exp,
+                          Types.is_ptr (actual_ty t) );
                     ty = ty';
                   }
               | _ -> { exp = Translate.default_exp; ty = Types.INT })
