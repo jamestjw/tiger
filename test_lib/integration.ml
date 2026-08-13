@@ -72,11 +72,7 @@ let%test_unit _ =
         output_err_fname
     in
     let cmd_inc, cmd_outc = Core_unix.open_process cmd in
-    let cmd_output =
-      match In_channel.input_lines ~fix_win_eol:true cmd_inc with
-      | [] -> ""
-      | _ :: lines -> String.concat ~sep:"\n" lines |> sanitise
-    in
+    let cmd_output = In_channel.input_all cmd_inc |> sanitise in
     let run_status = Core_unix.close_process (cmd_inc, cmd_outc) in
     let cmd_error =
       In_channel.with_file ~f:In_channel.input_all output_err_fname
