@@ -107,6 +107,7 @@ module Translate = struct
   let default_exp = Ex (Tree.CONST 0)
   let frags : Frame.frag list ref = ref []
   let str_labels : Temp.label StringMap.t ref = ref StringMap.empty
+  let record_descriptor_labels : (Types.unique * Temp.label) list ref = ref []
 
   let rec seq = function
     | [ a ] -> a
@@ -305,8 +306,19 @@ module Translate = struct
            T.LABEL end_label;
          ])
 
-  let recordExp fields pointer_fields =
-    let descriptor = Temp.new_label () in
+  let recordExp fields pointer_fields unique =
+    let rec find_descriptor = function
+      | [] ->
+          let descriptor = Temp.new_label () in
+          record_descriptor_labels :=
+            (unique, descriptor) :: !record_descriptor_labels;
+          frags :=
+            Frame.RECORD_DESCRIPTOR (descriptor, pointer_fields) :: !frags;
+          descriptor
+      | (known_unique, descriptor) :: rest ->
+          if known_unique == unique then descriptor else find_descriptor rest
+    in
+    let descriptor = find_descriptor !record_descriptor_labels in
     let r = Temp.new_temp () in
     let _, processed_fields =
       List.fold_left
@@ -333,7 +345,6 @@ module Translate = struct
                @ processed_fields),
              T.TEMP r ))
     in
-    frags := Frame.RECORD_DESCRIPTOR (descriptor, pointer_fields) :: !frags;
     exp
 
   let arrayExp (size, init, is_pointer) =
@@ -429,5 +440,6 @@ module Translate = struct
 
   let init () =
     frags := [];
-    str_labels := StringMap.empty
+    str_labels := StringMap.empty;
+    record_descriptor_labels := []
 end
