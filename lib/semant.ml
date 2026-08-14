@@ -579,22 +579,27 @@ module Semant : SEMANT = struct
           transExp (venv, tenv, senv, level, init)
         in
         let init_ty = actual_ty init_ty in
-        (match Symbol.look (tenv, t) with
-        | Some t' ->
-            if
-              not (Types.is_assignable ~actual:init_ty ~required:(actual_ty t'))
-            then
+        let declared_ty =
+          match Symbol.look (tenv, t) with
+          | Some t' ->
+              let declared_ty = actual_ty t' in
+              if not (Types.is_assignable ~actual:init_ty ~required:declared_ty)
+              then
+                ErrorMsg.error_pos t_pos
+                  (Printf.sprintf
+                     "type mismatch, expected %s but got %s instead"
+                     (Symbol.name t) (Types.to_string init_ty));
+              declared_ty
+          | None ->
               ErrorMsg.error_pos t_pos
-                (Printf.sprintf "type mismatch, expected %s but got %s instead"
-                   (Symbol.name t) (Types.to_string init_ty))
-        | None ->
-            ErrorMsg.error_pos t_pos
-              (Printf.sprintf "undefined type: %s" (Symbol.name t)));
+                (Printf.sprintf "undefined type: %s" (Symbol.name t));
+              Types.INT
+        in
         let var_access = Translate.alloc_local level !escape in
         {
           venv =
             S.enter
-              (venv, name, E.VarEntry { ty = init_ty; access = var_access });
+              (venv, name, E.VarEntry { ty = declared_ty; access = var_access });
           tenv;
           senv;
           inits =
