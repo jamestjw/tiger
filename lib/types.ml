@@ -27,6 +27,7 @@ module Types = struct
     | NAME (s, _) -> Printf.sprintf "NAME<%s>" (Symbol.name s)
     | UNIT -> "()"
 
+  (* Whether an actual value type can satisfy a required type. *)
   let is_assignable ~actual ~required =
     match (actual, required) with
     | RECORD (_, u1), RECORD (_, u2) -> u1 = u2
