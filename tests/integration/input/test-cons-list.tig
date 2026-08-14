@@ -5,9 +5,9 @@ let
   /* define a list */
   type stringlist = { hd : string, tl : stringlist } 
 
-  function reverse_list(l : stringlist) =
+  function reverse_list(l : stringlist) : stringlist =
     let
-      function reverse_aux(l : stringlist, acc : stringlist) =
+      function reverse_aux(l : stringlist, acc : stringlist) : stringlist =
         if l = nil then
           acc
         else
