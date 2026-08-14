@@ -27,7 +27,8 @@ module Types = struct
     | NAME (s, _) -> Printf.sprintf "NAME<%s>" (Symbol.name s)
     | UNIT -> "()"
 
-  let equals = function
+  let is_assignable ~actual ~required =
+    match (actual, required) with
     | RECORD (_, u1), RECORD (_, u2) -> u1 = u2
     | ARRAY (_, u1), ARRAY (_, u2) -> u1 = u2
     | NIL, NIL -> true
@@ -35,9 +36,8 @@ module Types = struct
     | STRING, STRING -> true
     | UNIT, UNIT -> true
     | NAME (n1, _), NAME (n2, _) -> n1 = n2
-    (* NIL is compatible with all RECORDS *)
+    (* NIL can be used where a RECORD is expected, but not vice versa. *)
     | NIL, RECORD _ -> true
-    | RECORD _, NIL -> true
     | _ -> false
 
   let is_ptr = function RECORD _ | ARRAY _ | STRING -> true | _ -> false
@@ -73,3 +73,10 @@ let%test_unit "array_with_name_to_string" =
     Types.ARRAY (Types.NAME (Symbol.to_symbol "CUSTOM", ref None), ref ())
   in
   [%test_eq: string] (Types.to_string t) expected
+
+let%test_unit "nil is only compatible with expected records" =
+  let record = Types.RECORD ([], ref ()) in
+  [%test_eq: bool] (Types.is_assignable ~actual:Types.NIL ~required:record) true;
+  [%test_eq: bool]
+    (Types.is_assignable ~actual:record ~required:Types.NIL)
+    false

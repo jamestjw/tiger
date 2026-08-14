@@ -48,7 +48,12 @@ module Semant : SEMANT = struct
   exception Semantic_error
 
   let check_type (required_type, { ty; _ }, pos, msg) =
-    if not @@ Types.equals (ty, required_type) then ErrorMsg.error_pos pos msg
+    if not @@ Types.is_assignable ~actual:ty ~required:required_type then
+      ErrorMsg.error_pos pos msg
+
+  let compatible_types ty1 ty2 =
+    Types.is_assignable ~actual:ty1 ~required:ty2
+    || Types.is_assignable ~actual:ty2 ~required:ty1
 
   let rec actual_ty = function
     | Types.NAME (_, t) -> (
@@ -103,7 +108,7 @@ module Semant : SEMANT = struct
           match left_ty with
           | Types.INT | Types.STRING | Types.NIL | Types.RECORD _
           | Types.ARRAY _ ->
-              if Types.equals (left_ty, right_ty) then (
+              if compatible_types left_ty right_ty then (
                 match
                   Translate.comparisonOperation
                     (left_exp, oper, right_exp, left_ty, right_ty)
@@ -178,7 +183,10 @@ module Semant : SEMANT = struct
                               let { exp; ty = ty' } = trexp e in
                               let ty = actual_ty ty in
                               let ty' = actual_ty ty' in
-                              if not (Types.equals (ty, ty')) then
+                              if
+                                not
+                                  (Types.is_assignable ~actual:ty' ~required:ty)
+                              then
                                 ErrorMsg.error_pos pos
                                   (Printf.sprintf
                                      "type mismatch for field '%s', expected \
@@ -229,7 +237,11 @@ module Semant : SEMANT = struct
             transVar (venv, tenv, senv, level, var)
           in
           let { ty = exp_type; exp = exp_exp } = trexp exp in
-          if not (Types.equals (actual_ty var_type, actual_ty exp_type)) then
+          if
+            not
+              (Types.is_assignable ~actual:(actual_ty exp_type)
+                 ~required:(actual_ty var_type))
+          then
             ErrorMsg.error_pos pos
               (Printf.sprintf
                  "type mismatch: tried to assign expression of type %s to \
@@ -251,14 +263,19 @@ module Semant : SEMANT = struct
           match else' with
           | Some e ->
               let else_expty = trexp e in
-              if not (Types.equals (then_expty.ty, else_expty.ty)) then
+              if not (compatible_types then_expty.ty else_expty.ty) then
                 ErrorMsg.error_pos (A.exp_pos then')
                   "type mismatch in then and else clause";
+              let ty =
+                match (then_expty.ty, else_expty.ty) with
+                | Types.NIL, (Types.RECORD _ as record) -> record
+                | _ -> then_expty.ty
+              in
               {
                 exp =
                   Translate.ifThenElse
                     (test_expty.exp, then_expty.exp, else_expty.exp);
-                ty = then_expty.ty;
+                ty;
               }
           | None ->
               check_type
@@ -381,7 +398,7 @@ module Semant : SEMANT = struct
     and processArg (exp, ty) =
       let { ty = exp_ty; exp = exp' } = trexp exp in
       let ty' = actual_ty ty in
-      if not (Types.equals (exp_ty, ty')) then
+      if not (Types.is_assignable ~actual:exp_ty ~required:ty') then
         ErrorMsg.error_pos (Absyn.exp_pos exp)
           (Printf.sprintf "Expected argument of type %s got %s instead"
              (Types.to_string ty') (Types.to_string exp_ty));
@@ -528,7 +545,9 @@ module Semant : SEMANT = struct
             in
             let body_expty = transExp (venv', tenv, senv, level', body) in
             let res_type = actual_ty result in
-            if not (Types.equals (res_type, body_expty.ty)) then
+            if
+              not (Types.is_assignable ~actual:body_expty.ty ~required:res_type)
+            then
               ErrorMsg.error_pos (A.exp_pos body)
                 (Printf.sprintf
                    "function return type does not match body, required %s got \
@@ -562,7 +581,9 @@ module Semant : SEMANT = struct
         let init_ty = actual_ty init_ty in
         (match Symbol.look (tenv, t) with
         | Some t' ->
-            if not @@ Types.equals (actual_ty t', init_ty) then
+            if
+              not (Types.is_assignable ~actual:init_ty ~required:(actual_ty t'))
+            then
               ErrorMsg.error_pos t_pos
                 (Printf.sprintf "type mismatch, expected %s but got %s instead"
                    (Symbol.name t) (Types.to_string init_ty))
