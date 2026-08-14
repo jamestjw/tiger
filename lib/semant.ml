@@ -157,7 +157,7 @@ module Semant : SEMANT = struct
           | Some t -> (
               let record_type = actual_ty t in
               match record_type with
-              | Types.RECORD (fields, _) ->
+              | Types.RECORD (fields, unique) ->
                   if not (List.length input_fields = List.length fields) then (
                     ErrorMsg.error_pos pos
                       (Printf.sprintf
@@ -200,7 +200,9 @@ module Semant : SEMANT = struct
                           Types.is_ptr (actual_ty ty))
                     in
                     {
-                      exp = Translate.recordExp input_field_exps pointer_fields;
+                      exp =
+                        Translate.recordExp input_field_exps pointer_fields
+                          unique;
                       ty = record_type;
                     }
               | _ ->
@@ -677,6 +679,24 @@ let%test_unit "legal_break_statement_in_while_loop" =
   let input_string = "let in while 1 do break end" in
   ignore (Semant.transProg (Parser.parse_string input_string));
   [%test_eq: bool] !ErrorMsg.anyErrors false
+
+let%test_unit "record descriptors are shared by record type" =
+  let descriptor_count input =
+    Semant.transProg (Parser.parse_string input)
+    |> List.count ~f:(function
+         | Frame.Frame.RECORD_DESCRIPTOR _ -> true
+         | _ -> false)
+  in
+  [%test_eq: int]
+    (descriptor_count
+       "let type r = { x : int } var a := r { x = 1 } var b := r { x = 2 } in \
+        0 end")
+    1;
+  [%test_eq: int]
+    (descriptor_count
+       "let type first = { x : int } type second = { x : int } var a := first \
+        { x = 1 } var b := second { x = 2 } in 0 end")
+    2
 
 let%expect_test "illegal_break_statement_outside_of_for_loop" =
   let input_string = "let in break end" in
